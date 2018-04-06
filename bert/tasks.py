@@ -36,6 +36,8 @@ class TaskAdd(Task, name="add"):
     def render_dockerfile(self, dockerfile):
         spath = posixpath.join(dockerfile.work_dir, self.value)
         path = posixpath.join(posixpath.dirname(spath), "")
+        if os.path.isdir(self.value):
+            path = posixpath.join(path, os.path.basename(self.value))
         dockerfile.append("ADD {} {}".format(self.value, path))
         dockerfile.add_file(self.value)
 
