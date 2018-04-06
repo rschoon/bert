@@ -92,7 +92,6 @@ class BertBuild(object):
             task.render_dockerfile(df)
 
         with tempfile.NamedTemporaryFile() as tf:
-            print("\n".join(df._lines))
             with tarfile.open(tf.name, "w") as tar:
                 tar_add_string(tar, "DockerFile", "\n".join(df._lines))
                 for fn in df._files:
