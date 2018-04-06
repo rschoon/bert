@@ -3,6 +3,8 @@ import os
 import re
 from setuptools import setup, find_packages
 
+assert sys.version_info >= (3,6)
+
 def read(filename):
     with open(os.path.join(os.path.dirname(__file__), filename)) as f:
         return f.read()
@@ -22,6 +24,7 @@ setup(
     packages = find_packages('.'),
     install_requires = [
         'click>=5.0',
+        'pyyaml',
     ],
     entry_points = {
         'console_scripts' : [

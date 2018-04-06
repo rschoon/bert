@@ -11,7 +11,7 @@ def cli(input):
     click.echo("hello world")
     for inp in input:
         if os.path.isdir(inp):
-            inp = os.path.join(inp, "bert.yml")
+            inp = os.path.join(inp, "bert-build.yml")
 
         build = BertBuild(inp)
-        click.echo(build)
+        build.build()
