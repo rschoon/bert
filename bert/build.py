@@ -57,6 +57,7 @@ class BertBuild(object):
     def __init__(self, filename):
         self.filename = filename
 
+        self.build_tag = None
         self.from_ = None
         self.tasks = []
 
@@ -69,6 +70,7 @@ class BertBuild(object):
         with open(self.filename, "r") as f:
             data = yaml.safe_load(f)
 
+            self.build_tag = data.pop("build-tag", None)
             self.from_ = expect_list(data.pop("from"), str)
             self.tasks = list(self._iter_parse_tasks(data.pop("tasks")))
 
@@ -97,7 +99,12 @@ class BertBuild(object):
                     tar.add(fn)
             tf.seek(0)
 
+            cmd = ["docker", "build"]
+            if self.build_tag is not None:
+                cmd.extend(["-t", self.build_tag])
+            cmd.append("-")
+
             try:
-                subprocess.check_call(["docker", "build", "-t", "build-tmp", "-"], stdin=tf)
+                subprocess.check_call(cmd, stdin=tf)
             except subprocess.CalledProcessError as exc:
                raise RuntimeError("%r failed: %d"%(exc.cmd, exc.returncode))
