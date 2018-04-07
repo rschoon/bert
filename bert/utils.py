@@ -1,8 +1,10 @@
 
 import hashlib
+import io
 import json
 import os
 import struct
+import tempfile
 
 def json_hash(name, value):
     h = hashlib.new(name)
@@ -51,3 +53,22 @@ def file_hash(name, filename):
                 h.update(struct.pack('Q', sf))
                 h.update(hf.digest())
     return h.hexdigest()
+
+class TemporaryIOFromIterable(io.RawIOBase):
+    def __init__(self, iterable):
+        self._iter = iter(iterable)
+        self._pos = 0
+
+    def readinto(self, buf):
+        try:
+            chunk = next(self._iter)
+        except StopIteration:
+            return 0
+
+        sz = len(buf)
+        buf[:sz] = chunk
+        self._pos += sz
+        return sz
+
+    def tell(self):
+        return self._pos

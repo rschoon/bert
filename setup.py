@@ -27,6 +27,7 @@ setup(
         'pyyaml',
         'docker',
         'dockerpty',
+        'jinja2'
     ],
     entry_points = {
         'console_scripts' : [

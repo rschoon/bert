@@ -4,6 +4,7 @@ import tempfile
 import click
 import docker
 import dockerpty
+from jinja2 import Template
 import yaml
 
 from .tasks import get_task
@@ -71,12 +72,14 @@ class BuildJob(object):
         self.docker_client = docker.from_env(timeout=300)
 
         self.work_dir = "/bert-build"
+        self.dist_dir = "dist"
         self.src_image = image
         self.current_key_id = None
         self.current_task = None
         self.current_container = None
         self.current_command = None
         self._all_containers = []
+        self.vars = {}
 
     def setup(self):
         click.echo(">>> Pulling: {}".format(self.src_image))
@@ -145,9 +148,18 @@ class BuildJob(object):
         click.echo("--- New Image: {}".format(self.src_image))
         self.cleanup()
 
+    def cancel(self):
+        self.current_container = None
+        self.current_command = None
+        self.cleanup()
+
     def _commit_from_image(self, image):
         self.src_image = image.id
         click.echo("--- Existing Image: {}".format(self.src_image))
+
+    def template(self, txt):
+        tpl = Template(txt)
+        return tpl.render(**self.vars)
 
     def cleanup(self):
         for container in self._all_containers[::-1]:
