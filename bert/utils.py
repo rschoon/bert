@@ -54,7 +54,7 @@ def file_hash(name, filename):
                 h.update(hf.digest())
     return h.hexdigest()
 
-class TemporaryIOFromIterable(io.RawIOBase):
+class IOFromIterable(io.RawIOBase):
     def __init__(self, iterable):
         self._iter = iter(iterable)
         self._pos = 0

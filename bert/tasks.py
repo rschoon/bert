@@ -6,7 +6,7 @@ import re
 import tarfile
 import tempfile
 
-from .utils import file_hash, TemporaryIOFromIterable
+from .utils import file_hash, IOFromIterable
 
 TASKS = {}
 
@@ -67,7 +67,7 @@ class TaskExportBin(Task, name="export-bin"):
         msg = job.template(self.value["msg"])
 
         tstream, tstat = container.get_archive(install_path)
-        tf = TemporaryIOFromIterable(tstream)
+        tf = IOFromIterable(tstream)
 
         header = """#!/bin/sh -e
         rm -rf {}
