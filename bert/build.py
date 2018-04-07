@@ -114,6 +114,7 @@ class BuildJob(object):
             image=self.src_image,
             labels={LABEL_BUILD_ID : self.current_key_id},
             command=command,
+            working_dir=self.work_dir,
             stdin_open=True,
             tty=True
         )
