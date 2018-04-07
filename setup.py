@@ -2,6 +2,7 @@
 import os
 import re
 from setuptools import setup, find_packages
+import sys
 
 assert sys.version_info >= (3,6)
 
