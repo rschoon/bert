@@ -65,7 +65,7 @@ class IOFromIterable(io.RawIOBase):
         except StopIteration:
             return 0
 
-        sz = len(buf)
+        sz = len(chunk)
         buf[:sz] = chunk
         self._pos += sz
         return sz

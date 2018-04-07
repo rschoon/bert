@@ -82,12 +82,12 @@ class TaskExportBin(Task, name="export-bin"):
         with open(name, "wb") as f:
             f.write(header_data)
 
-            with tarfile.open(fileobj=tf, mode="r:") as tin, tarfile.open(fileobj=f, mode="w:bz2") as tout:
+            with tarfile.open(fileobj=tf, mode="r|") as tin, tarfile.open(fileobj=f, mode="w:bz2") as tout:
                 while True:
                     ti = tin.next()
                     if ti is None:
                         break
-                    tout.addfile(ti, tin.extractfile(ti))
+                    tout.addfile(ti, tin.extractfile(ti) if ti.isreg() else None)
 
         os.chmod(name, 0o775)
 
