@@ -69,7 +69,7 @@ class BertTask(object):
 class BuildJob(object):
     def __init__(self, image):
         # XXX timeout is problematic
-        self.docker_client = docker.from_env(timeout=300)
+        self.docker_client = docker.from_env(timeout=600)
 
         self.work_dir = "/bert-build"
         self.dist_dir = "dist"
@@ -138,6 +138,7 @@ class BuildJob(object):
             if result['StatusCode'] != 0:
                 raise BuildFailed(rc=result['StatusCode'])
 
+        # This can take a while...
         image = self.current_container.commit(
             changes="LABEL {}={}".format(LABEL_BUILD_ID, self.current_key_id)
         )
