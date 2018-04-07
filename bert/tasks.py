@@ -50,6 +50,7 @@ class TaskAdd(Task, name="add"):
         with tempfile.TemporaryFile() as tf:
             with tarfile.open(fileobj=tf, mode="w") as tar:
                 tar.add(self.value)
+            tf.seek(0)
 
             container.put_archive(
                 path=job.work_dir,
