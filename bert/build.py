@@ -1,4 +1,6 @@
 
+import tempfile
+
 import click
 import docker
 import dockerpty
@@ -53,7 +55,9 @@ class BertTask(object):
     def display_name(self):
         if self.name:
             return self.name
-        return "%s: %s"%(self.task_name, self._task.value)
+        if self._task.value is not None:
+            return "%s: %s"%(self.task_name, self._task.value)
+        return self.task_name
 
     def run(self, job):
         try:
@@ -66,16 +70,23 @@ class BuildJob(object):
         # XXX timeout is problematic
         self.docker_client = docker.from_env(timeout=300)
 
-        self.work_dir = "/var/tmp"
+        self.work_dir = "/bert-build"
         self.src_image = image
         self.current_key_id = None
         self.current_task = None
         self.current_container = None
+        self.current_command = None
         self._all_containers = []
 
     def setup(self):
         click.echo(">>> Pulling: {}".format(self.src_image))
         self.docker_client.images.pull(self.src_image)
+
+        self.run_task(BertTask({"setup" : None}))
+
+    def run_task(self, task):
+        self.current_task = task
+        task.run(self)
 
     def create(self, job_key, command=None):
         ct = self.current_task
@@ -95,6 +106,7 @@ class BuildJob(object):
         if images:
             raise BuildImageExists(images[0])
 
+        self.current_command = command
         self.current_container = self.docker_client.containers.create(
             image=self.src_image,
             labels={LABEL_BUILD_ID : self.current_key_id},
@@ -107,19 +119,20 @@ class BuildJob(object):
     def commit(self):
         assert self.current_container
 
-        try:
-            dockerpty.start(self.docker_client.api, self.current_container.id)
-        except KeyboardInterrupt:
-            pass
+        if self.current_command is not None:
+            try:
+                dockerpty.start(self.docker_client.api, self.current_container.id)
+            except KeyboardInterrupt:
+                pass
 
-        # If we were interrupted, we got here early and need to stop.
-        # If not, we are stopped anyway.
-        self.current_container.stop()
+            # If we were interrupted, we got here early and need to stop.
+            # If not, we are stopped anyway.
+            self.current_container.stop()
 
-        # Determined if we were successful.
-        result = self.current_container.wait()
-        if result['StatusCode'] != 0:
-            raise BuildFailed(rc=result['StatusCode'])
+            # Determined if we were successful.
+            result = self.current_container.wait()
+            if result['StatusCode'] != 0:
+                raise BuildFailed(rc=result['StatusCode'])
 
         image = self.current_container.commit(
             changes="LABEL {}={}".format(LABEL_BUILD_ID, self.current_key_id)
@@ -127,6 +140,7 @@ class BuildJob(object):
 
         self.src_image = image.id
         self.current_container = None
+        self.current_command = None
 
         click.echo("--- New Image: {}".format(self.src_image))
         self.cleanup()
@@ -182,7 +196,6 @@ class BertBuild(object):
         try:
             job.setup()
             for task in self.tasks:
-                job.current_task = task
-                task.run(job)
+                job.run_task(task)
         finally:
             job.close()
