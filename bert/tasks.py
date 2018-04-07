@@ -1,6 +1,10 @@
 
 import os
 import posixpath
+import tarfile
+import tempfile
+
+from .utils import file_hash
 
 TASKS = {}
 
@@ -13,9 +17,11 @@ def get_task(name, value):
 #
 
 class Task(object):
+    task_name = None
+
     def __init_subclass__(cls, name, **kwargs):
         super().__init_subclass__(**kwargs)
-        cls.name = name
+        cls.task_name = name
         TASKS[name] = cls
 
     def __init__(self, value):
@@ -25,7 +31,7 @@ class Task(object):
     def setup(self):
         pass
 
-    def render_dockerfile(self, dockerfile):
+    def run(self, job):
         raise NotImplementedError
 
 #
@@ -33,23 +39,45 @@ class Task(object):
 #
 
 class TaskAdd(Task, name="add"):
-    def render_dockerfile(self, dockerfile):
-        spath = posixpath.join(dockerfile.work_dir, self.value)
-        path = posixpath.join(posixpath.dirname(spath), "")
-        if os.path.isdir(self.value):
-            path = posixpath.join(path, os.path.basename(self.value))
-        dockerfile.append("ADD {} {}".format(self.value, path))
-        dockerfile.add_file(self.value)
+    def run(self, job):
+        container = job.create({
+            'value' : self.value,
+            'file_sha256' : file_hash('sha256', self.value)
+        })
+
+        with tempfile.TemporaryFile() as tf:
+            with tarfile.open(fileobj=tf, mode="w") as tar:
+                tar.add(self.value)
+
+            container.put_archive(
+                path=job.work_dir,
+                data=tf
+            )
+
+        job.commit()
 
 class TaskRun(Task, name="run"):
-    def render_dockerfile(self, dockerfile):
+    def run(self, job):
         if self.value.startswith("./"):
-            run_path = posixpath.join(dockerfile.work_dir, self.value)
-            dst_path = os.path.join(os.path.dirname(run_path), "")
+            command = posixpath.join(job.work_dir, self.value)
 
-            dockerfile.append("ADD {} {}".format(self.value, dst_path))
-            dockerfile.append("RUN {}".format(run_path))
+            container = job.create({
+                'value' : self.value,
+                'file_sha256' : file_hash('sha256', self.value)
+            }, command=command)
 
-            dockerfile.add_file(self.value)
+            with tempfile.TemporaryFile() as tf:
+                with tarfile.open(fileobj=tf, mode="w") as tar:
+                    tar.add(self.value)
+                tf.seek(0)
+
+                container.put_archive(
+                    path=job.work_dir,
+                    data=tf
+                )
         else:
-            dockerfile.append("RUN {}".format(self.value))
+            container = job.create({
+                'value' : self.value
+            }, command=self.value)
+
+        job.commit()

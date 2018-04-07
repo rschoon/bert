@@ -25,6 +25,8 @@ setup(
     install_requires = [
         'click>=5.0',
         'pyyaml',
+        'docker',
+        'dockerpty',
     ],
     entry_points = {
         'console_scripts' : [
