@@ -197,5 +197,9 @@ class BertBuild(object):
             job.setup()
             for task in self.tasks:
                 job.run_task(task)
+
+            if self.build_tag:
+                img = job.docker_client.images.get(job.src_image)
+                img.tag(self.build_tag)
         finally:
             job.close()
