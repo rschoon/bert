@@ -83,7 +83,7 @@ class TaskRun(Task, name="run"):
 
         job.commit()
 
-class TaskAdd(Task, name="setup"):
+class TaskSetup(Task, name="setup"):
     def run(self, job):
         container = job.create({})
 
