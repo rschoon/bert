@@ -112,8 +112,9 @@ class TaskExportDeb(Task, name="export-deb"):
         if install_path:
             paths.append(paths)
 
-        # make package name
+        # collect other details
         name = os.path.join(job.dist_dir, job.template(self.value["name"]))
+        comp = self.value.get("compress-type", "xz")
 
         if not paths:
             raise RuntimeError("Need a path")
@@ -137,9 +138,9 @@ class TaskExportDeb(Task, name="export-deb"):
             self._align_ar_data(far)
 
             # create data
-            offset_sz_data = self._write_ar_header(far, "data.tar.gz")
+            offset_sz_data = self._write_ar_header(far, "data.tar."+comp)
             data_start = far.tell()
-            with tarfile.open(fileobj=far, mode="w|gz") as tarf:
+            with tarfile.open(fileobj=far, mode="w|"+comp) as tarf:
                 for path in paths:
                     self._copy_data(container, tarf, path)
             self._update_ar_size(far, offset_sz_data, far.tell() - data_start)
