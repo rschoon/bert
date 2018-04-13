@@ -132,7 +132,7 @@ class TaskExportDeb(Task, name="export-deb"):
             offset_sz_control = self._write_ar_header(far, "control.tar.gz")
             control_start = far.tell()
             with tarfile.open(fileobj=far, mode="w|gz") as tarf:
-                self._write_control(tarf)
+                self._write_control(job, tarf)
             self._update_ar_size(far, offset_sz_control, far.tell() - control_start)
             self._align_ar_data(far)
 
@@ -193,7 +193,7 @@ class TaskExportDeb(Task, name="export-deb"):
 
         return (1, key)
 
-    def _write_control(self, tarf):
+    def _write_control(self, job, tarf):
         control_data = self.value.get('control', {})
         if 'Package' not in control_data:
             raise RuntimeError('Missing control package name')
@@ -205,7 +205,7 @@ class TaskExportDeb(Task, name="export-deb"):
         fields = sorted(control_data.keys(), key=self._control_sort_key)
         control = io.BytesIO()
         for field in fields:
-            val = control_data[field]
+            val = job.template(control_data[field])
             control.write(field.encode('utf-8'))
             control.write(b": ")
             if "\n" in val:
