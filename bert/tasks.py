@@ -96,7 +96,7 @@ class TaskExportDeb(Task, name="export-deb"):
         'Package', 'Version', 'Architecture', 'Section'
     )
     CONTROL_FIELD_ORDER_END = (
-        'Homepage', 'Descrption'
+        'Homepage', 'Description'
     )
 
     def run(self, job):
