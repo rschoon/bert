@@ -165,7 +165,7 @@ class TaskExportDeb(Task, name="export-deb"):
 
     def _align_ar_data(self, fileobj, align=2):
         off = fileobj.tell()
-        need = 2 - (off % align)
+        need = align - (off % align)
         if need < align:
             fileobj.write(b'\0' * need)
 
