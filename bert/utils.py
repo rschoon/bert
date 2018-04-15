@@ -4,7 +4,6 @@ import io
 import json
 import os
 import struct
-import tempfile
 
 def json_hash(name, value):
     h = hashlib.new(name)

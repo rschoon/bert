@@ -1,6 +1,4 @@
 
-import tempfile
-
 import click
 import docker
 import dockerpty
