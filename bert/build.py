@@ -71,6 +71,7 @@ class BuildJob(object):
 
         self.work_dir = "/bert-build"
         self.dist_dir = "dist"
+        self.cache_dir = "cache"
         self.src_image = image
         self.current_key_id = None
         self.current_task = None
