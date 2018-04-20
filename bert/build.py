@@ -1,4 +1,5 @@
 
+from collections import OrderedDict
 import click
 import docker
 import dockerpty
@@ -21,6 +22,24 @@ class BuildFailed(Exception):
     def __repr__(self):
         return "BuildFailed(rc={0.rc})".format(self)
 
+#
+#
+#
+
+class YamlLoader(yaml.SafeLoader):
+    pass
+
+def _construct_yaml_mapping(loader, node):
+    loader.flatten_mapping(node)
+    return OrderedDict(loader.construct_pairs(node))
+
+YamlLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
+                           _construct_yaml_mapping)
+
+#
+#
+#
+
 def expect_type(val, type_):
     if type_ is None:
         return val
@@ -32,6 +51,10 @@ def expect_list(val, subtype=None):
     if subtype is not None and isinstance(val, subtype):
         return [val]
     raise ValueError("Invalid value type")
+
+#
+#
+#
 
 class BertTask(object):
     def __init__(self, taskinfo):
@@ -69,6 +92,7 @@ class BuildJob(object):
         # XXX timeout is problematic
         self.docker_client = docker.from_env(timeout=600)
 
+        self.changes = []
         self.work_dir = "/bert-build"
         self.dist_dir = "dist"
         self.cache_dir = "cache"
@@ -142,6 +166,7 @@ class BuildJob(object):
             changes="LABEL {}={}".format(LABEL_BUILD_ID, self.current_key_id)
         )
 
+        self.changes.append(image.id)
         self.src_image = image.id
         self.current_container = None
         self.current_command = None
@@ -159,6 +184,8 @@ class BuildJob(object):
         click.echo("--- Existing Image: {}".format(self.src_image))
 
     def template(self, txt):
+        if txt is None:
+            return txt
         tpl = Template(txt)
         return tpl.render(**self.vars)
 
@@ -173,26 +200,12 @@ class BuildJob(object):
         self.current_container = None
         self.cleanup()
 
-class BertBuild(object):
-    def __init__(self, filename):
-        self.filename = filename
-
-        self.build_tag = None
-        self.from_ = None
-        self.tasks = []
-
-        self._parse()
-
-    def __repr__(self):
-        return "BertBuild(%r)"%(self.filename, )
-
-    def _parse(self):
-        with open(self.filename, "r") as f:
-            data = yaml.safe_load(f)
-
-            self.build_tag = data.pop("build-tag", None)
-            self.from_ = expect_list(data.pop("from"), str)
-            self.tasks = list(self._iter_parse_tasks(data.pop("tasks")))
+class BertStage(object):
+    def __init__(self, config, name=None):
+        self.name = name
+        self.build_tag = config.pop("build-tag", None)
+        self.from_ = expect_list(config.pop("from"), str)
+        self.tasks = list(self._iter_parse_tasks(config.pop("tasks")))
 
     def _iter_parse_tasks(self, tasks):
         tasks = expect_list(tasks, dict)
@@ -216,3 +229,27 @@ class BertBuild(object):
                 img.tag(self.build_tag)
         finally:
             job.close()
+
+class BertBuild(object):
+    def __init__(self, filename):
+        self.filename = filename
+        self.stages = []
+        self._parse()
+
+    def __repr__(self):
+        return "BertBuild(%r)"%(self.filename, )
+
+    def _parse(self):
+        with open(self.filename, "r") as f:
+            config = yaml.load(f, YamlLoader)
+
+            if 'tasks' in config:
+                self.stages.append(BertStage(config))
+            else:
+                stages = config.pop("stages")
+                for stage_name, stage in stages.items():
+                    self.stages.append(BertStage(stage, name=stage_name))
+
+    def build(self):
+        for stage in self.stages:
+            stage.build()
