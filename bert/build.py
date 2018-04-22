@@ -200,10 +200,13 @@ class BuildJob(object):
         self.cleanup()
 
 class BertStage(object):
-    def __init__(self, config, name=None):
+    def __init__(self, config, name=None, defaults={}):
         self.name = name
         self.build_tag = config.pop("build-tag", None)
-        self.from_ = expect_list(config.pop("from"), str)
+        try:
+            self.from_ = expect_list(config.pop("from"), str)
+        except KeyError:
+            self.from_ = defaults['from']
         self.tasks = list(self._iter_parse_tasks(config.pop("tasks")))
 
     def _iter_parse_tasks(self, tasks):
@@ -233,6 +236,7 @@ class BertBuild(object):
     def __init__(self, filename):
         self.filename = filename
         self.stages = []
+        self.stage_defaults = {}
         self._parse()
 
     def __repr__(self):
@@ -245,9 +249,17 @@ class BertBuild(object):
             if 'tasks' in config:
                 self.stages.append(BertStage(config))
             else:
+                for name in ('from', ):
+                    try:
+                        self.stage_defaults[name] = config.pop(name)
+                    except KeyError:
+                        pass
+
                 stages = config.pop("stages")
                 for stage_name, stage in stages.items():
-                    self.stages.append(BertStage(stage, name=stage_name))
+                    stage = BertStage(stage, name=stage_name,
+                                      defaults=self.stage_defaults)
+                    self.stages.append(stage)
 
     def build(self):
         for stage in self.stages:
