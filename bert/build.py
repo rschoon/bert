@@ -4,6 +4,7 @@ import click
 import docker
 import dockerpty
 from jinja2 import Template
+import json
 import yaml
 
 from .tasks import get_task
@@ -101,6 +102,16 @@ class CurrentTask(object):
     def display_name(self):
         return self.task.display_name
 
+    @property
+    def image_command(self):
+        image = self.image
+        if not image:
+            return None
+        config = image.attrs.get("Config")
+        if not config:
+            return None
+        return config.get("Cmd")
+
 class BuildJob(object):
     def __init__(self, image):
         # XXX timeout is problematic
@@ -187,10 +198,10 @@ class BuildJob(object):
         changes = [
             "LABEL {}={}".format(LABEL_BUILD_ID, self.current_task.key_id) 
         ]
-        if self.current_task.image is not None:
-            cmd = self.current_task.image.attrs.get("Cmd")
-            if self.current_task.command and cmd:
-                changes.append("CMD {}".format(json.dumps(cmd)))
+
+        cmd = self.current_task.image_command
+        if cmd and self.current_task.command:
+            changes.append("CMD {}".format(json.dumps(cmd)))
 
         # This can take a while...
         image = container.commit(
