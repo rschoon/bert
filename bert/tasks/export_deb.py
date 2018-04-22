@@ -19,7 +19,12 @@ class TaskExportDeb(Task, name="export-deb"):
         # allows us to avoid playing games with fakeroot, and copy
         # directly to the data tar.
 
-        container = job.create({})
+        try:
+            dest = job.template(self.value["dest"])
+        except KeyError:
+            dest = job.template(self.value["name"])
+        if os.path.exists(dest) and not job.changes:
+            return
 
         # allow either
         paths = self.value.get('paths', [])
@@ -28,14 +33,14 @@ class TaskExportDeb(Task, name="export-deb"):
             paths.append(paths)
 
         # collect other details
-        name = os.path.join(job.dist_dir, job.template(self.value["name"]))
+
         comp = self.value.get("compress-type", "xz")
 
         if not paths:
             raise RuntimeError("Need a path")
 
-        os.makedirs(job.dist_dir, exist_ok=True)
-        with open(name, "w+b") as far:
+        container = job.create({})
+        with open(dest+".tmp", "w+b") as far:
             far.write(b"!<arch>\n")
 
             # package header
@@ -60,6 +65,7 @@ class TaskExportDeb(Task, name="export-deb"):
                     self._copy_data(container, tarf, path)
             self._update_ar_size(far, offset_sz_data, far.tell() - data_start)
             self._align_ar_data(far)
+        os.rename(dest+".tmp", dest)
 
     def _update_ar_size(self, fileobj, write_offset, new_size):
         here = fileobj.tell()

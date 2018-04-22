@@ -11,7 +11,10 @@ class TaskExportBin(Task, name="export-bin"):
         container = job.create({})
 
         install_path = self.value['install-path']
-        name = os.path.join(job.dist_dir, job.template(self.value["name"]))
+        try:
+            dest = job.template(self.value["dest"])
+        except KeyError:
+            dest = job.template(self.value["name"])
         msg = job.template(self.value["msg"])
 
         tstream, tstat = container.get_archive(install_path)
@@ -25,7 +28,6 @@ class TaskExportBin(Task, name="export-bin"):
         """.format(install_path, msg, os.path.dirname(install_path))
         header_data = ("\n".join(re.split(r"\n\s+", header))).encode('utf-8')
 
-        os.makedirs(job.dist_dir, exist_ok=True)
         with open(name, "wb") as f:
             f.write(header_data)
 
