@@ -95,6 +95,7 @@ class CurrentTask(object):
         self.task = task
         self.container = None
         self.command = None
+        self.image = None
 
     @property
     def display_name(self):
@@ -144,6 +145,11 @@ class BuildJob(object):
         if images:
             raise BuildImageExists(images[0])
 
+        image = self.src_image
+        if isinstance(image, str):
+            image = self.docker_client.images.get(self.src_image)
+        self.current_task.image = image
+
         self.current_task.command = command
         container = self.current_task.container = self.docker_client.containers.create(
             image=self.src_image,
@@ -178,9 +184,17 @@ class BuildJob(object):
             if result['StatusCode'] != 0:
                 raise BuildFailed(rc=result['StatusCode'])
 
+        changes = [
+            "LABEL {}={}".format(LABEL_BUILD_ID, self.current_task.key_id) 
+        ]
+        if self.current_task.image is not None:
+            cmd = self.current_task.image.attrs.get("Cmd")
+            if self.current_task.command and cmd:
+                changes.append("CMD {}".format(json.dumps(cmd)))
+
         # This can take a while...
         image = container.commit(
-            changes="LABEL {}={}".format(LABEL_BUILD_ID, self.current_task.key_id)
+            changes="\n".join(changes)
         )
 
         self.changes.append(image.id)
