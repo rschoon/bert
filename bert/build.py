@@ -16,11 +16,12 @@ class BuildImageExists(Exception):
         self.image = image
 
 class BuildFailed(Exception):
-    def __init__(self, rc=0):
+    def __init__(self, msg=None, rc=0):
+        self.msg = msg
         self.rc = rc
 
     def __repr__(self):
-        return "BuildFailed(rc={0.rc})".format(self)
+        return "BuildFailed(msg={0.msg:r}, rc={0.rc})".format(self)
 
 #
 #
@@ -87,6 +88,18 @@ class BertTask(object):
         except BuildImageExists as bie:
             job._commit_from_image(bie.image)
 
+class CurrentTask(object):
+    def __init__(self, task):
+        self.image = None
+        self.key_id = None
+        self.task = task
+        self.container = None
+        self.command = None
+
+    @property
+    def display_name(self):
+        return self.task.display_name
+
 class BuildJob(object):
     def __init__(self, image):
         # XXX timeout is problematic
@@ -96,10 +109,7 @@ class BuildJob(object):
         self.work_dir = "/bert-build"
         self.cache_dir = "cache"
         self.src_image = image
-        self.current_key_id = None
         self.current_task = None
-        self.current_container = None
-        self.current_command = None
         self._all_containers = []
         self.vars = {}
 
@@ -110,12 +120,15 @@ class BuildJob(object):
         self.run_task(BertTask({"setup" : None}))
 
     def run_task(self, task):
-        self.current_task = task
+        self.current_task = CurrentTask(task)
         task.run(self)
 
     def create(self, job_key, command=None):
-        ct = self.current_task
-        self.current_key_id = json_hash('sha256', [
+        if self.current_task is None:
+            raise BuildFailed("Task Create: No current task")
+
+        ct = self.current_task.task
+        key_id = self.current_task.key_id = json_hash('sha256', [
             self.src_image,
             ct.task_name,
             ct.key_params,
@@ -123,52 +136,56 @@ class BuildJob(object):
         ])
 
         click.echo(">>> Build: {}".format(self.current_task.display_name))
-        click.echo("--- Id: {}".format(self.current_key_id))
+        click.echo("--- Id: {}".format(key_id))
 
         images = self.docker_client.images.list(filters={
-            'label' : '{}={}'.format(LABEL_BUILD_ID, self.current_key_id)
+            'label' : '{}={}'.format(LABEL_BUILD_ID, key_id)
         }, all=True)
         if images:
             raise BuildImageExists(images[0])
 
-        self.current_command = command
-        self.current_container = self.docker_client.containers.create(
+        self.current_task.command = command
+        container = self.current_task.container = self.docker_client.containers.create(
             image=self.src_image,
-            labels={LABEL_BUILD_ID : self.current_key_id},
+            labels={LABEL_BUILD_ID : key_id},
             command=command,
             working_dir=self.work_dir,
             stdin_open=True,
             tty=True
         )
-        return self.current_container
+        return container
 
     def commit(self):
-        assert self.current_container
+        if self.current_task is None:
+            raise BuildFailed("Task Commit: No current task")
 
-        if self.current_command is not None:
+        container = self.current_task.container
+        if container is None:
+            raise BuildFailed("Task Commit: No current container to commit")
+
+        if self.current_task.command is not None:
             try:
-                dockerpty.start(self.docker_client.api, self.current_container.id)
+                dockerpty.start(self.docker_client.api, container.id)
             except KeyboardInterrupt:
                 pass
 
             # If we were interrupted, we got here early and need to stop.
             # If not, we are stopped anyway.
-            self.current_container.stop()
+            container.stop()
 
             # Determined if we were successful.
-            result = self.current_container.wait()
+            result = container.wait()
             if result['StatusCode'] != 0:
                 raise BuildFailed(rc=result['StatusCode'])
 
         # This can take a while...
-        image = self.current_container.commit(
-            changes="LABEL {}={}".format(LABEL_BUILD_ID, self.current_key_id)
+        image = container.commit(
+            changes="LABEL {}={}".format(LABEL_BUILD_ID, self.current_task.key_id)
         )
 
         self.changes.append(image.id)
         self.src_image = image.id
-        self.current_container = None
-        self.current_command = None
+        self.current_task = None
 
         click.echo("--- New Image: {}".format(self.src_image))
         self.cleanup()
@@ -189,8 +206,12 @@ class BuildJob(object):
         return tpl.render(**self.vars)
 
     def cleanup(self):
+        current_container = None
+        if self.current_task is not None:
+            current_container = self.current_task.container
+
         for container in self._all_containers[::-1]:
-            if container == self.current_container:
+            if container == current_container:
                 continue
             self.docker_client.remove_container(container)
             self._all_containers.remove(container)
