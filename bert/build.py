@@ -9,6 +9,7 @@ import yaml
 
 from .tasks import get_task
 from .utils import json_hash
+from .vars import BuildVars
 
 LABEL_BUILD_ID = "bert.build_id"
 
@@ -61,6 +62,7 @@ def expect_list(val, subtype=None):
 class BertTask(object):
     def __init__(self, taskinfo):
         self.name = taskinfo.pop("name", None)
+        self.env = taskinfo.pop("env", None)
 
         action, value = taskinfo.popitem()
         assert not taskinfo
@@ -123,7 +125,7 @@ class BuildJob(object):
         self.src_image = image
         self.current_task = None
         self._all_containers = []
-        self.vars = {}
+        self.vars = BuildVars()
 
     def setup(self):
         click.echo(">>> Pulling: {}".format(self.src_image))
@@ -140,10 +142,17 @@ class BuildJob(object):
             raise BuildFailed("Task Create: No current task")
 
         ct = self.current_task.task
+        env = self._make_env()
+
+        key_params = {}
+        if env:
+            key_params["env"] = env
+        key_params.update(ct.key_params)
+
         key_id = self.current_task.key_id = json_hash('sha256', [
             self.src_image,
             ct.task_name,
-            ct.key_params,
+            key_params,
             job_key
         ])
 
@@ -168,9 +177,20 @@ class BuildJob(object):
             command=command,
             working_dir=self.work_dir,
             stdin_open=True,
+            environment=["{}={}".format(*p) for p in env.items()],
             tty=True
         )
         return container
+
+    def _make_env(self):
+        env = {}
+
+        ct_env = self.current_task.task.env
+        if ct_env:
+            for k, v in ct_env.items():
+                env[self.template(k)] = self.template(v)
+
+        return env
 
     def commit(self):
         if self.current_task is None:
@@ -232,7 +252,7 @@ class BuildJob(object):
 
     def cleanup(self):
         current_container = None
-        if self.current_task is not None:
+        if self.current_task is not None and self.current_task.task is not None:
             current_container = self.current_task.container
 
         for container in self._all_containers[::-1]:
