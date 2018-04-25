@@ -1,5 +1,9 @@
 
 import hashlib
+import os
+import re
+import random
+import subprocess
 import tarfile
 import tempfile
 
@@ -9,21 +13,20 @@ from ..utils import file_hash
 RE_CACHE_SUB = re.compile(r'[^-_.A-Za-z0-9]+')
 
 def make_cache_key(path):
-    prefix = hashlib.sha256(path)
+    prefix = hashlib.sha256(path.encode('utf-8')).hexdigest()
     suffix = RE_CACHE_SUB.sub('', os.path.basename(path))
     if suffix:
         return "{}-{}".format(prefix, suffix)
     return prefix
 
+def random_id():
+    return "%x"%random.randrange(2**32)
+
 class TaskGit(Task, name="git"):
     def setup(self):
         self.repo = self.value['repo']
-        self.depth = self.value.get('depth', None)
         self.path = self.value.get('path') or self.value.get('dest')
-        self.tag = self.value.get('tag')
-        self.branch = self.branch.get('branch')
-        if not self.tag and not self.branch:
-            self.branch = "master"
+        self.ref = self.value.get('ref', "master")
 
         self.cache_key = make_cache_key(self.repo)
 
@@ -38,30 +41,21 @@ class TaskGit(Task, name="git"):
 
         with tempfile.TemporaryFile() as tf:
             with tarfile.open(fileobj=tf, mode="w") as tar:
-                tar.add(self.value)
+                tar.add(src_path, arcname=self.path)
             tf.seek(0)
 
             container.put_archive(
-                path=job.work_dir,
+                path="/",
                 data=tf
             )
 
         job.commit()
 
     def _run_git(self, dest):
-        opts = [self.repo]
-        if self.tag:
-            opts.append(self.tag+":target")
-        else:
-            opts.append(self.branch+":target")
-        if self.depth:
-            opts.extend(["--depth", str(self.depth)])
-
-        if os.path.isdir(dest):
-            subprocess.check_call(["git", "fetch"] + opts, cwd=dest)
-        else:
-            subprocess.check_call(["git", "clone"] + opts + [dest])
-        subprocess.check_call(["git", "checkout", "target"], cwd=dest)
+        if not os.path.isdir(dest):
+            subprocess.check_call(["git", "clone", self.repo, dest])
+        subprocess.check_call(["git", "fetch", self.repo, self.ref], cwd=dest)
+        subprocess.check_call(["git", "checkout", self.ref], cwd=dest)
 
         hashval = subprocess.check_output(["git", "log", "-1", "--format=%H"], cwd=dest)
         return hashval.decode('utf-8').strip()
