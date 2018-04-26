@@ -138,7 +138,10 @@ class TaskExportDeb(Task, name="export-deb"):
                 for num, line in enumerate(lines):
                     if num != 0:
                         control.write(b" ")
-                    control.write(line.encode('utf-8'))
+                    if line.strip():
+                        control.write(line.encode('utf-8'))
+                    else:
+                        control.write(b".")
                     control.write(b"\n")
             else:
                 control.write(val.encode('utf-8'))
