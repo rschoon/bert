@@ -61,10 +61,15 @@ def expect_list(val, subtype=None):
 
 class BertTask(object):
     def __init__(self, taskinfo):
+        # this may be first instead of action
         self.name = taskinfo.pop("name", None)
+
+        # action is always early
+        action, value = taskinfo.popitem()
+
+        # other props
         self.env = taskinfo.pop("env", None)
 
-        action, value = taskinfo.popitem()
         assert not taskinfo
         self._task = get_task(action, value)
 
@@ -192,7 +197,7 @@ class BuildJob(object):
 
         return env
 
-    def commit(self):
+    def commit(self, env=None):
         if self.current_task is None:
             raise BuildFailed("Task Commit: No current task")
 
@@ -222,6 +227,10 @@ class BuildJob(object):
         cmd = self.current_task.image_command
         if cmd and self.current_task.command:
             changes.append("CMD {}".format(json.dumps(cmd)))
+
+        if env:
+            for ek, ev in env.items():
+                changes.append("ENV {} {}".format(ek, ev))
 
         # This can take a while...
         image = container.commit(
