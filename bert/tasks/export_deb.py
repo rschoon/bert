@@ -1,4 +1,5 @@
 
+import collections
 import io
 import os
 import tarfile
@@ -127,14 +128,20 @@ class TaskExportDeb(Task, name="export-deb"):
         fields = sorted(control_data.keys(), key=self._control_sort_key)
         control = io.BytesIO()
         for field in fields:
-            val = job.template(control_data[field])
+            val = control_data[field]
+            if isinstance(val, list):
+                val = ", ".join(map(job.template, val))
+            else:
+                val = job.template(val)
+
             control.write(field.encode('utf-8'))
             control.write(b": ")
-            if "\n" in val:
-                lines = val.split("\n")
-                while lines[-1] == "":
-                    del lines[-1]
 
+            lines = val.split("\n")
+            while lines[-1] == "":
+                del lines[-1]
+
+            if len(lines) > 1:
                 for num, line in enumerate(lines):
                     if num != 0:
                         control.write(b" ")
@@ -144,7 +151,7 @@ class TaskExportDeb(Task, name="export-deb"):
                         control.write(b".")
                     control.write(b"\n")
             else:
-                control.write(val.encode('utf-8'))
+                control.write(lines[0].encode('utf-8'))
                 control.write(b"\n")
         control.seek(0)
 
