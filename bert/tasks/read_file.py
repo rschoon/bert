@@ -19,7 +19,8 @@ class TaskReadFile(Task, name="read-file"):
                     data = tar.extractfile(item).read().decode('utf-8')
                     if data.endswith("\n"):
                         data = data[:-1]
-                    job.vars[self.value['var']] = data
+
+                    job.set_var(self.value['var'], data)
                     break
 
         job.cancel()

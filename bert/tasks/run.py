@@ -3,9 +3,11 @@ from . import Task
 
 class TaskRun(Task, name="run"):
     def run(self, job):
+        cmd = job.template(self.value)
+
         job.create({
-            'value' : self.value
-        }, command=self.value)
+            'value' : cmd
+        }, command=cmd)
 
         job.commit()
 
