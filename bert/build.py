@@ -120,19 +120,27 @@ class CurrentTask(object):
         return config.get("Cmd")
 
 class BuildJob(object):
-    def __init__(self, image):
+    def __init__(self, stage, config, vars=None):
         # XXX timeout is problematic
         self.docker_client = docker.from_env(timeout=600)
 
+        self.stage = stage
+        self.config = config
         self.changes = []
         self.work_dir = "/bert-build"
         self.cache_dir = "cache"
-        self.src_image = image
+        self.src_image = None
         self.current_task = None
         self._all_containers = []
-        self.vars = BuildVars()
+        if vars is not None:
+            self.saved_vars = vars
+        else:
+            self.saved_vars = {}
+        self.vars = BuildVars(self)
 
-    def setup(self):
+    def setup(self, image):
+        self.src_image = image
+
         click.echo(">>> Pulling: {}".format(self.src_image))
         self.docker_client.images.pull(self.src_image)
 
@@ -259,6 +267,9 @@ class BuildJob(object):
         tpl = Template(txt)
         return tpl.render(**self.vars)
 
+    def set_var(self, name, value):
+        self.vars[name] = self.saved_vars[name] = value
+
     def cleanup(self):
         current_container = None
         if self.current_task is not None and self.current_task.task is not None:
@@ -274,44 +285,78 @@ class BuildJob(object):
         self.current_container = None
         self.cleanup()
 
+#
+#
+#
+
+class BertConfig(object):
+    def __init__(self, data):
+        self.name = data.pop('name')
+        self.images = expect_list(data.pop("from"), str)
+
+    def build_stages(self, stages):
+        saved_vars = {}
+        for stage in stages:
+            job = stage.build(self, vars=saved_vars)
+            saved_vars = job.saved_vars
+
+    def vars(self):
+        return {
+            'name' : self.name,
+            'images' : self.images
+        }
+
 class BertStage(object):
-    def __init__(self, config, name=None, defaults={}):
+    def __init__(self, data, name=None):
         self.name = name
-        self.build_tag = config.pop("build-tag", None)
+        self.build_tag = data.pop("build-tag", None)
         try:
-            self.from_ = expect_list(config.pop("from"), str)
+            self.from_ = expect_list(data.pop("from"), str)
         except KeyError:
-            self.from_ = defaults['from']
-        self.tasks = list(self._iter_parse_tasks(config.pop("tasks")))
+            self.from_ = None
+        self.tasks = list(self._iter_parse_tasks(data.pop("tasks")))
 
     def _iter_parse_tasks(self, tasks):
         tasks = expect_list(tasks, dict)
         for task in tasks:
             yield BertTask(task)
 
-    def build(self):
-        for from_image in self.from_:
-            self._build_from(from_image)
+    def build(self, config, vars=None):
+        if self.from_:
+            images = self.from_
+        else:
+            images = config.images
 
-    def _build_from(self, img):
-        job = BuildJob(img)
+        job = BuildJob(self, config, vars=vars)
 
+        for from_image in images:
+            self._build_from(job, config, from_image)
+
+        return job
+
+    def _build_from(self, job, config, img):
         try:
-            job.setup()
+            job.setup(img)
             for task in self.tasks:
                 job.run_task(task)
 
             if self.build_tag:
                 img = job.docker_client.images.get(job.src_image)
-                img.tag(self.build_tag)
+                img.tag(job.template(self.build_tag))
         finally:
             job.close()
+
+    def vars(self):
+        return {
+            'name' : self.name,
+            'images' : self.from_
+        }
 
 class BertBuild(object):
     def __init__(self, filename):
         self.filename = filename
+        self.configs = []
         self.stages = []
-        self.stage_defaults = {}
         self._parse()
 
     def __repr__(self):
@@ -322,20 +367,33 @@ class BertBuild(object):
             config = yaml.load(f, YamlLoader)
 
             if 'tasks' in config:
+                self.configs.append(BertConfig({
+                    'name' : 'default'
+                }))
                 self.stages.append(BertStage(config))
             else:
-                for name in ('from', ):
-                    try:
-                        self.stage_defaults[name] = config.pop(name)
-                    except KeyError:
-                        pass
+                if 'configs' in config:
+                    configs = config.pop("configs")
+                else:
+                    configs = { "default" : {} }
+                    for name in ('from', ):
+                        try:
+                            configs["default"][name] = config.pop(name)
+                        except KeyError:
+                            pass
+
+                for confdata in configs:
+                    conf = BertConfig(confdata)
+                    self.configs.append(conf)
 
                 stages = config.pop("stages")
                 for stage_name, stage in stages.items():
-                    stage = BertStage(stage, name=stage_name,
-                                      defaults=self.stage_defaults)
+                    stage = BertStage(stage, name=stage_name)
                     self.stages.append(stage)
 
     def build(self):
-        for stage in self.stages:
-            stage.build()
+        for config in self.configs:
+            config.build_stages(self.stages)
+
+    def vars(self):
+        return {}
