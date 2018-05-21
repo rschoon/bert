@@ -55,7 +55,11 @@ class TaskGit(Task, name="git"):
         if not os.path.isdir(dest):
             subprocess.check_call(["git", "clone", self.repo, dest])
         subprocess.check_call(["git", "fetch", self.repo, self.ref], cwd=dest)
-        subprocess.check_call(["git", "checkout", self.ref], cwd=dest)
+        try:
+            subprocess.check_call(["git", "checkout", "FETCH_HEAD"], cwd=dest)
+        except OSError as exc:
+            print("Warning: %s not found, using FETCH_HEAD"%(self.ref,))
+            subprocess.check_call(["git", "checkout", self.ref], cwd=dest)
 
         hashval = subprocess.check_output(["git", "log", "-1", "--format=%H"], cwd=dest)
         return hashval.decode('utf-8').strip()
