@@ -54,7 +54,7 @@ class TaskGit(Task, name="git"):
     def _run_git(self, dest):
         if not os.path.isdir(dest):
             subprocess.check_call(["git", "clone", self.repo, dest])
-        subprocess.check_call(["git", "fetch", self.repo, self.ref], cwd=dest)
+        subprocess.check_call(["git", "fetch", self.repo, "--tags", self.ref], cwd=dest)
         try:
             subprocess.check_call(["git", "checkout", "FETCH_HEAD"], cwd=dest)
         except OSError as exc:
