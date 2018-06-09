@@ -292,7 +292,10 @@ class BuildJob(object):
 class BertConfig(object):
     def __init__(self, data):
         self.name = data.pop('name')
-        self.images = expect_list(data.pop("from"), str)
+        try:
+            self.images = expect_list(data.pop("from"), str)
+        except KeyError:
+            self.images = None
 
     def build_stages(self, stages):
         saved_vars = {}
@@ -375,7 +378,7 @@ class BertBuild(object):
                 if 'configs' in config:
                     configs = config.pop("configs")
                 else:
-                    configs = { "default" : {} }
+                    configs = [{"name" : "default"}]
                     for name in ('from', ):
                         try:
                             configs["default"][name] = config.pop(name)
