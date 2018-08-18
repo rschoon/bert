@@ -53,6 +53,13 @@ def file_hash(name, filename):
                 h.update(hf.digest())
     return h.hexdigest()
 
+def value_hash(name, value):
+    h = hashlib.new(name)
+    if isinstance(value, str):
+        value = value.encode('utf-8')
+    h.update(value)
+    return h.hexdigest()
+
 class IOFromIterable(io.RawIOBase):
     def __init__(self, iterable):
         self._iter = iter(iterable)
