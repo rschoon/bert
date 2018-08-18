@@ -65,7 +65,7 @@ class BertTask(object):
         self.name = taskinfo.pop("name", None)
 
         # action is always early
-        action, value = taskinfo.popitem()
+        action, value = taskinfo.popitem(last=False)
 
         # other props
         self.env = taskinfo.pop("env", None)
@@ -144,7 +144,7 @@ class BuildJob(object):
         click.echo(">>> Pulling: {}".format(self.src_image))
         self.docker_client.images.pull(self.src_image)
 
-        self.run_task(BertTask({"setup" : None}))
+        self.run_task(BertTask(OrderedDict(setup=None)))
 
     def run_task(self, task):
         self.current_task = CurrentTask(task)
@@ -320,7 +320,7 @@ class BertStage(object):
         self.tasks = list(self._iter_parse_tasks(data.pop("tasks")))
 
     def _iter_parse_tasks(self, tasks):
-        tasks = expect_list(tasks, dict)
+        tasks = expect_list(tasks, OrderedDict)
         for task in tasks:
             yield BertTask(task)
 

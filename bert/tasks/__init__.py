@@ -5,6 +5,8 @@ TASKS = {}
 
 def get_task(name, value):
     cls = _find_task_cls(name)
+    if cls is None:
+        raise ValueError("No task called `%s'."%(name,))
     return cls(value)
 
 def _find_task_cls(name):
