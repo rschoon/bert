@@ -2,6 +2,7 @@
 import io
 import os
 import posixpath
+import shlex
 import tarfile
 import tempfile
 
@@ -14,13 +15,13 @@ class TaskScript(Task, name="script"):
         if isinstance(self.value, dict):
             contents = self.value.get("script") or self.value.get("contents")
             if contents is None:
-                script = [self.value.get("path")]
+                script = job.template([self.value.get("path")])
             else:
                 contents = job.template(contents)
         elif isinstance(self.value, list):
-            script = self.value
+            script = job.template(self.value)
         else:
-            script = [self.value]
+            script = shlex.split(job.template(self.value))
 
         if contents is not None:
             contents_bytes = contents.encode('utf-8')
