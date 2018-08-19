@@ -10,20 +10,13 @@ import yaml
 
 from .tasks import get_task
 from .utils import json_hash
+from .exc import BuildFailed
 
 LABEL_BUILD_ID = "bert.build_id"
 
 class BuildImageExists(Exception):
     def __init__(self, image):
         self.image = image
-
-class BuildFailed(Exception):
-    def __init__(self, msg=None, rc=0):
-        self.msg = msg
-        self.rc = rc
-
-    def __repr__(self):
-        return "BuildFailed(msg={0.msg:r}, rc={0.rc})".format(self)
 
 #
 #

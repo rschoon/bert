@@ -1,6 +1,8 @@
 
 import keyword as _keyword
 
+from ..exc import BuildFailed
+
 TASKS = {}
 
 def get_task(name, value):
@@ -35,6 +37,9 @@ def _make_mod_name(basename, name):
 #
 #
 #
+
+class TaskFailed(BuildFailed):
+    pass
 
 class Task(object):
     task_name = None
