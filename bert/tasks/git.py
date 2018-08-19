@@ -22,26 +22,26 @@ def make_cache_key(path):
 def random_id():
     return "%x"%random.randrange(2**32)
 
-class TaskGit(Task, name="git"):
-    def setup(self):
-        self.repo = self.value['repo']
-        self.path = self.value.get('path') or self.value.get('dest')
-        self.ref = self.value.get('ref', "master")
+class GitRun(object):
+    def __init__(self, job, repo, path, ref):
+        self.job = job
+        self.repo = job.template(repo)
+        self.path = job.template(path)
+        self.ref = job.template(ref)
 
-        self.cache_key = make_cache_key(self.repo)
+        self.src_path = os.path.join(job.cache_dir, make_cache_key(self.repo))
 
-    def run(self, job):
-        src_path = os.path.join(job.cache_dir, self.cache_key)
-        commit = self._run_git(src_path)
+    def run(self):
+        commit = self.run_git()
 
-        container = job.create({
+        container = self.job.create({
             'path' : self.path,
             'commit' : commit,
         })
 
         with tempfile.TemporaryFile() as tf:
             with tarfile.open(fileobj=tf, mode="w") as tar:
-                tar.add(src_path, arcname=self.path)
+                tar.add(self.src_path, arcname=self.path)
             tf.seek(0)
 
             container.put_archive(
@@ -49,9 +49,12 @@ class TaskGit(Task, name="git"):
                 data=tf
             )
 
-        job.commit()
+        self.job.commit()
 
-    def _run_git(self, dest):
+    def run_git(self, dest=None):
+        if dest is None:
+            dest = self.src_path
+
         if not os.path.isdir(dest):
             subprocess.check_call(["git", "clone", self.repo, dest])
         subprocess.check_call(["git", "fetch", self.repo, "--tags", self.ref], cwd=dest)
@@ -63,3 +66,13 @@ class TaskGit(Task, name="git"):
 
         hashval = subprocess.check_output(["git", "log", "-1", "--format=%H"], cwd=dest)
         return hashval.decode('utf-8').strip()
+
+class TaskGit(Task, name="git"):
+    def setup(self):
+        self.repo = self.value['repo']
+        self.path = self.value.get('path') or self.value.get('dest')
+        self.ref = self.value.get('ref', "master")
+
+    def run(self, job):
+        gr = GitRun(job, self.repo, self.path, self.ref)
+        gr.run()
