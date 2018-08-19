@@ -5,11 +5,11 @@ import docker
 import dockerpty
 from jinja2 import Template
 import json
+import os
 import yaml
 
 from .tasks import get_task
 from .utils import json_hash
-from .vars import BuildVars
 
 LABEL_BUILD_ID = "bert.build_id"
 
@@ -55,9 +55,21 @@ def expect_list(val, subtype=None):
         return [val]
     raise ValueError("Invalid value type")
 
+def expect_list_or_none(val, subtype=None):
+    if val is None:
+        return val
+    return expect_list(val, subtype=subtype)
+
 #
 #
 #
+
+class BuildVars(dict):
+    def __init__(self, job=None):
+        super().__init__(env=os.environ)
+
+        if job:
+            job.put_vars(self)
 
 class BertTask(object):
     def __init__(self, taskinfo):
@@ -270,6 +282,12 @@ class BuildJob(object):
     def set_var(self, name, value):
         self.vars[name] = self.saved_vars[name] = value
 
+    def put_vars(self, data):
+        self.config.put_vars(data)
+        if self.stage:
+            self.stage.put_vars(data)
+        data.update(self.saved_vars)
+
     def cleanup(self):
         current_container = None
         if self.current_task is not None and self.current_task.task is not None:
@@ -289,8 +307,33 @@ class BuildJob(object):
 #
 #
 
-class BertConfig(object):
+class BertScope(object):
+    def __init__(self, parent_scope=None):
+        self.parent_scope = parent_scope
+        self.global_vars = {}
+
+    def load_global_vars(self, config):
+        include_vars = expect_list_or_none(config.pop("include-vars", None), str)
+        if include_vars:
+            for inc_fn in include_vars:
+                with open(inc_fn, "r") as f:
+                    self.global_vars.update(yaml.load(f, YamlLoader))
+
+        svars = config.pop('vars', None)
+        if svars:
+            self.global_vars.update(svars)
+
+    def put_vars(self, data):
+        if self.parent_scope is not None:
+            self.parent_scope.put_vars(data)
+        data.update(self.global_vars)
+
+class BertConfig(BertScope):
     def __init__(self, data):
+        super().__init__(None)
+
+        self.load_global_vars(data)
+
         self.name = data.pop('name')
         try:
             self.images = expect_list(data.pop("from"), str)
@@ -303,14 +346,17 @@ class BertConfig(object):
             job = stage.build(self, vars=saved_vars)
             saved_vars = job.saved_vars
 
-    def vars(self):
-        return {
+    def put_vars(self, data):
+        data["config"] = {
             'name' : self.name,
             'images' : self.images
         }
+        super().put_vars(data)
 
-class BertStage(object):
-    def __init__(self, data, name=None):
+class BertStage(BertScope):
+    def __init__(self, parent, data, name=None):
+        super().__init__(parent)
+
         self.name = name
         self.build_tag = data.pop("build-tag", None)
         try:
@@ -319,12 +365,16 @@ class BertStage(object):
             self.from_ = None
         self.tasks = list(self._iter_parse_tasks(data.pop("tasks")))
 
+        self.load_global_vars(data)
+
     def _iter_parse_tasks(self, tasks):
         tasks = expect_list(tasks, OrderedDict)
         for task in tasks:
             yield BertTask(task)
 
     def build(self, config, vars=None):
+        vars = dict(vars) if vars else {}
+
         if self.from_:
             images = self.from_
         else:
@@ -349,14 +399,18 @@ class BertStage(object):
         finally:
             job.close()
 
-    def vars(self):
-        return {
-            'name' : self.name,
-            'images' : self.from_
-        }
+    def put_vars(self, data):
+        if "stage" not in data:
+            data["stage"] = {
+                'name' : self.name,
+                'images' : self.from_
+            }
+        super().put_vars(data)
 
-class BertBuild(object):
+class BertBuild(BertScope):
     def __init__(self, filename):
+        super().__init__(None)
+
         self.filename = filename
         self.configs = []
         self.stages = []
@@ -369,34 +423,33 @@ class BertBuild(object):
         with open(self.filename, "r") as f:
             config = yaml.load(f, YamlLoader)
 
-            if 'tasks' in config:
-                self.configs.append(BertConfig({
-                    'name' : 'default'
-                }))
-                self.stages.append(BertStage(config))
+        self.load_global_vars(config)
+
+        if 'tasks' in config:
+            self.configs.append(BertConfig({
+                'name' : 'default'
+            }))
+            self.stages.append(BertStage(self, config))
+        else:
+            if 'configs' in config:
+                configs = config.pop("configs")
             else:
-                if 'configs' in config:
-                    configs = config.pop("configs")
-                else:
-                    configs = [{"name" : "default"}]
-                    for name in ('from', ):
-                        try:
-                            configs["default"][name] = config.pop(name)
-                        except KeyError:
-                            pass
+                configs = [{"name" : "default"}]
+                for name in ('from', ):
+                    try:
+                        configs["default"][name] = config.pop(name)
+                    except KeyError:
+                        pass
 
-                for confdata in configs:
-                    conf = BertConfig(confdata)
-                    self.configs.append(conf)
+            for confdata in configs:
+                conf = BertConfig(confdata)
+                self.configs.append(conf)
 
-                stages = config.pop("stages")
-                for stage_name, stage in stages.items():
-                    stage = BertStage(stage, name=stage_name)
-                    self.stages.append(stage)
+            stages = config.pop("stages")
+            for stage_name, stage in stages.items():
+                stage = BertStage(self, stage, name=stage_name)
+                self.stages.append(stage)
 
     def build(self):
         for config in self.configs:
             config.build_stages(self.stages)
-
-    def vars(self):
-        return {}
