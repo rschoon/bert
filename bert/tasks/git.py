@@ -52,16 +52,31 @@ class GitRun(object):
         self.job.commit()
 
     def run_git(self, dest=None):
+        have_fetch_head = True
+
         if dest is None:
             dest = self.src_path
 
         if not os.path.isdir(dest):
             subprocess.check_call(["git", "clone", self.repo, dest])
-        subprocess.check_call(["git", "fetch", self.repo, "--tags", self.ref], cwd=dest)
+
         try:
-            subprocess.check_call(["git", "checkout", "FETCH_HEAD"], cwd=dest)
-        except OSError as exc:
-            print("Warning: %s not found, using FETCH_HEAD"%(self.ref,))
+            subprocess.check_call(["git", "fetch", self.repo, "--tags", self.ref], cwd=dest)
+        except subprocess.CalledProcessError:
+            have_fetch_head = False
+            # Some git repos forbit fetching via a commit hash, so retry
+            # with everything
+            print("Warning: fetching %s directly failed"%(self.ref, ))
+            subprocess.check_call(["git", "fetch", self.repo], cwd=dest)
+
+        try:
+            if have_fetch_head:
+                subprocess.check_call(["git", "checkout", "FETCH_HEAD"], cwd=dest)
+        except subprocess.CalledProcessError:
+            print("Warning: %s not found at FETCH_HEAD, retrying directly"%(self.ref,))
+            have_fetch_head = False
+
+        if not have_fetch_head:
             subprocess.check_call(["git", "checkout", self.ref], cwd=dest)
 
         hashval = subprocess.check_output(["git", "log", "-1", "--format=%H"], cwd=dest)
