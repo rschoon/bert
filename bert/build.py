@@ -3,7 +3,7 @@ from collections import OrderedDict
 import click
 import docker
 import dockerpty
-from jinja2 import Template
+import jinja2
 import json
 import os
 import yaml
@@ -74,6 +74,7 @@ class BertTask(object):
 
         # other props
         self.env = taskinfo.pop("env", None)
+        self.when = taskinfo.pop("when", None)
 
         assert not taskinfo
         self._task = get_task(action, value)
@@ -96,6 +97,13 @@ class BertTask(object):
         return self.task_name
 
     def run(self, job):
+        click.echo(">>> Build: {}".format(self.display_name))
+
+        if self.when is not None:
+            if not job.eval_expr(self.when):
+                click.echo("--- Skipped")
+                return
+
         try:
             return self._task.run(job)
         except BuildImageExists as bie:
@@ -174,7 +182,6 @@ class BuildJob(object):
             job_key
         ])
 
-        click.echo(">>> Build: {}".format(self.current_task.display_name))
         click.echo("--- Id: {}".format(key_id))
 
         images = self.docker_client.images.list(filters={
@@ -266,10 +273,15 @@ class BuildJob(object):
         self.src_image = image.id
         click.echo("--- Existing Image: {}".format(self.src_image))
 
+    def eval_expr(self, txt):
+        env = jinja2.Environment()
+        expr = env.compile_expression(txt)
+        return expr(**self.vars)
+
     def template(self, txt):
         if txt is None:
             return txt
-        tpl = Template(txt)
+        tpl = jinja2.Template(txt)
         return tpl.render(**self.vars)
 
     def set_var(self, name, value):
