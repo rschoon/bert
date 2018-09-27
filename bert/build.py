@@ -279,8 +279,14 @@ class BuildJob(object):
         return expr(**self.vars)
 
     def template(self, txt):
-        if txt is None:
+        if txt is None or isinstance(txt, (int, float)):
             return txt
+
+        if isinstance(txt, dict):
+            return {self.template(k):self.template(v) for k,v in txt.items()}
+        elif isinstance(txt, list):
+            return [self.template(v) for v in txt]
+
         tpl = jinja2.Template(txt)
         return tpl.render(**self.vars)
 
