@@ -137,6 +137,8 @@ class BuildJob(object):
         # XXX timeout is problematic
         self.docker_client = docker.from_env(timeout=600)
 
+        self.tpl_env = jinja2.Environment(undefined=jinja2.StrictUndefined)
+
         self.stage = stage
         self.config = config
         self.changes = []
@@ -303,8 +305,7 @@ class BuildJob(object):
         click.echo("--- Existing Image: {}".format(self.src_image))
 
     def eval_expr(self, txt):
-        env = jinja2.Environment()
-        expr = env.compile_expression(txt)
+        expr = self.tpl_env.compile_expression(txt)
         return expr(**self.vars)
 
     def template(self, txt):
@@ -316,7 +317,7 @@ class BuildJob(object):
         elif isinstance(txt, list):
             return [self.template(v) for v in txt]
 
-        tpl = jinja2.Template(txt)
+        tpl = self.tpl_env.from_string(txt)
         return tpl.render(**self.vars)
 
     def set_var(self, name, value):
