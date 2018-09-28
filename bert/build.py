@@ -115,6 +115,7 @@ class CurrentTask(object):
         self.key_id = None
         self.task = task
         self.container = None
+        self.env = None
         self.command = None
         self.image = None
 
@@ -199,6 +200,8 @@ class BuildJob(object):
         self.current_task.image = image
 
         self.current_task.command = command
+        self.current_task.env = env
+
         container = self.current_task.container = self.docker_client.containers.create(
             image=self.src_image,
             labels={LABEL_BUILD_ID : key_id},
@@ -222,11 +225,11 @@ class BuildJob(object):
 
     def commit(self, env=None):
         if self.current_task is None:
-            raise BuildFailed("Task Commit: No current task")
+            raise BuildFailed("Task Commit: No current task", job=self)
 
         container = self.current_task.container
         if container is None:
-            raise BuildFailed("Task Commit: No current container to commit")
+            raise BuildFailed("Task Commit: No current container to commit", job=self)
 
         if self.current_task.command is not None:
             try:
@@ -241,7 +244,7 @@ class BuildJob(object):
             # Determined if we were successful.
             result = container.wait()
             if result['StatusCode'] != 0:
-                raise BuildFailed(rc=result['StatusCode'], current_container=container, current_container_env=env)
+                raise BuildFailed(rc=result['StatusCode'], job=self)
 
         changes = [
             "LABEL {}={}".format(LABEL_BUILD_ID, self.current_task.key_id) 
@@ -267,13 +270,17 @@ class BuildJob(object):
         click.echo("--- New Image: {}".format(self.src_image))
         self.cleanup()
 
-    def resurrect_shell(self, container, env=None):
-        if env is None:
-            env = {}
+    def resurrect_shell(self, container=None, env=None):
+        if container is None:
+            container = self.current_task.container
+            if env is None:
+                env = self.current_task.env
 
         # once the command is stopped, there's no getting it back without
         # running the command again, but we can commit to an image
-        image = container.commit()
+        image = container.commit(
+            changes="LABEL {}={}".format(LABEL_BUILD_ID, "@temporary")
+        )
         self._extra_images.append(image)
 
         try:
@@ -337,11 +344,12 @@ class BuildJob(object):
         for container in self._all_containers[::-1]:
             if container == current_container:
                 continue
-            self.docker_client.containers.remove(container)
+            container.remove()
             self._all_containers.remove(container)
 
         for image in self._extra_images:
-            self.docker_client.images.remove(image, noprune=True)
+            self.docker_client.images.remove(image.id, noprune=True)
+        self._extra_images[:] = []
 
     def close(self):
         self.current_container = None
@@ -390,13 +398,13 @@ class BertConfig(BertScope):
             try:
                 job = stage.build(self, vars=saved_vars)
             except BuildFailed as bf:
-                if shell_fail and bf.current_container is not None:
+                if shell_fail and bf.job is not None and bf.rc != 0:
                     click.echo("Job failed, dropping into shell", err=True)
-                    job.resurrect_shell(bf.current_container, env=bf.current_container_env)
-                job.close()
+                    bf.job.resurrect_shell()
                 raise
 
             saved_vars = job.saved_vars
+            job.close()
 
     def put_vars(self, data):
         data["config"] = {
