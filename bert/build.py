@@ -145,6 +145,7 @@ class BuildJob(object):
         self.src_image = None
         self.current_task = None
         self._all_containers = []
+        self._extra_images = []
         if vars is not None:
             self.saved_vars = vars
         else:
@@ -238,7 +239,7 @@ class BuildJob(object):
             # Determined if we were successful.
             result = container.wait()
             if result['StatusCode'] != 0:
-                raise BuildFailed(rc=result['StatusCode'])
+                raise BuildFailed(rc=result['StatusCode'], current_container=container, current_container_env=env)
 
         changes = [
             "LABEL {}={}".format(LABEL_BUILD_ID, self.current_task.key_id) 
@@ -263,6 +264,34 @@ class BuildJob(object):
 
         click.echo("--- New Image: {}".format(self.src_image))
         self.cleanup()
+
+    def resurrect_shell(self, container, env=None):
+        if env is None:
+            env = {}
+
+        # once the command is stopped, there's no getting it back without
+        # running the command again, but we can commit to an image
+        image = container.commit()
+        self._extra_images.append(image)
+
+        try:
+            container = self.docker_client.containers.create(
+                image=image,
+                labels={LABEL_BUILD_ID : "@temporary"},
+                working_dir=self.work_dir,
+                stdin_open=True,
+                environment=["{}={}".format(*p) for p in env.items()],
+                tty=True,
+                command="/bin/bash" # XXX This is a guess!
+            )
+            self._all_containers.append(container)
+
+            try:
+                dockerpty.start(self.docker_client.api, container.id)
+            finally:
+                container.stop()
+        finally:
+            self.cleanup()
 
     def cancel(self):
         self.current_container = None
@@ -307,8 +336,11 @@ class BuildJob(object):
         for container in self._all_containers[::-1]:
             if container == current_container:
                 continue
-            self.docker_client.remove_container(container)
+            self.docker_client.containers.remove(container)
             self._all_containers.remove(container)
+
+        for image in self._extra_images:
+            self.docker_client.images.remove(image, noprune=True)
 
     def close(self):
         self.current_container = None
@@ -351,10 +383,18 @@ class BertConfig(BertScope):
         except KeyError:
             self.images = None
 
-    def build_stages(self, stages):
+    def build_stages(self, stages, shell_fail=False):
         saved_vars = {}
         for stage in stages:
-            job = stage.build(self, vars=saved_vars)
+            try:
+                job = stage.build(self, vars=saved_vars)
+            except BuildFailed as bf:
+                if shell_fail and bf.current_container is not None:
+                    click.echo("Job failed, dropping into shell", err=True)
+                    job.resurrect_shell(bf.current_container, env=bf.current_container_env)
+                job.close()
+                raise
+
             saved_vars = job.saved_vars
 
     def put_vars(self, data):
@@ -419,10 +459,11 @@ class BertStage(BertScope):
         super().put_vars(data)
 
 class BertBuild(BertScope):
-    def __init__(self, filename):
+    def __init__(self, filename, shell_fail=False):
         super().__init__(None)
 
         self.filename = filename
+        self.shell_fail = shell_fail
         self.configs = []
         self.stages = []
         self._parse()
@@ -463,4 +504,4 @@ class BertBuild(BertScope):
 
     def build(self):
         for config in self.configs:
-            config.build_stages(self.stages)
+            config.build_stages(self.stages, shell_fail=self.shell_fail)
