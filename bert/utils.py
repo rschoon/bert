@@ -1,9 +1,31 @@
 
+import ast
 import hashlib
 import io
 import json
 import os
+import re
 import struct
+
+def expect_file_mode(mode, _sub_mode_re=re.compile('^(u|g|o)=([rwx]+)$')):
+    if mode is None or mode == "":
+        return None
+
+    if isinstance(mode, int):
+        return mode
+
+    modes = mode.split(",")
+    rv = 0
+    for sm in modes:
+        m = _sub_mode_re.match(sm)
+        if not m:
+            raise ValueError('Invalud mode value %s in %s'%(sm, mode))
+        shift = ("o","g","u").index(m.group(1))*3
+        bits = 0
+        for bi in m.group(2):
+            bits |= 2**('x','w','r').index(bi)
+        rv |= (bits << shift)
+    return rv
 
 def json_hash(name, value):
     h = hashlib.new(name)
