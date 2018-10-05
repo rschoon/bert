@@ -1,0 +1,51 @@
+stages:
+    - test
+    - package
+#    - upload
+
+py36:
+    image: python:3.6
+    stage: test
+    script:
+        - ./ci/run-tests.sh py36
+
+py37:
+    image: python:3.7
+    stage: test
+    script:
+        - ./ci/run-tests.sh py37
+
+package-wheel:
+    image: python:3
+    stage: package
+    script:
+        - python setup.py bdist_wheel
+    artifacts:
+        paths:
+            - dist/
+        expire_in: 2 years
+    only:
+        - master
+        - tags
+
+package-sdist:
+    image: python:3
+    stage: package
+    script:
+        - python setup.py sdist
+    artifacts:
+        paths:
+            - dist/
+        expire_in: 2 years
+    only:
+        - master
+        - tags
+
+#upload:
+#    image: docker.git.cornhooves.org/docker-apps/python-pkg-tools:latest
+#    stage: upload
+#    script:
+#        - gpg-load-key
+#        - twine upload -s "$GPG_SIGNING_KEY_ID" dist/*
+#    only:
+#        - tags
