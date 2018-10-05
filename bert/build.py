@@ -498,7 +498,7 @@ class BertBuild(BertScope):
                 configs = [{"name" : "default"}]
                 for name in ('from', ):
                     try:
-                        configs["default"][name] = config.pop(name)
+                        configs[0][name] = config.pop(name)
                     except KeyError:
                         pass
 
