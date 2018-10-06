@@ -22,6 +22,7 @@ setup(
     description = "Build things",
     author = 'Robin Schoonover',
     author_email = 'robin@cornhooves.org',
+    url = 'https://git.cornhooves.org/rschoon/bert',
     packages = find_packages('.'),
     install_requires = [
         'click>=5.0',
