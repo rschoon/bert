@@ -3,6 +3,12 @@ stages:
     - package
 #    - upload
 
+lint:
+    image: python:3
+    stage: test
+    script:
+        - ./ci/run-tests.sh lint
+
 py36:
     image: python:3.6
     stage: test

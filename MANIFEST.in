@@ -1,2 +1,4 @@
 include LICENSE
+include tox.ini
+recursive-include ci *.sh
 recursive-include tests *.py
