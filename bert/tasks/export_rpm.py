@@ -1,9 +1,11 @@
 
 import collections
+from enum import IntEnum
 import gzip
 import hashlib
 import io
 import os
+import re
 import tarfile
 import tempfile
 import shutil
@@ -41,6 +43,18 @@ OS_CANON = {
     "MP_RAS:": 16, "FreeMiNT": 17, "OS/390": 18, "VM/ESA": 19, "OS/390": 20,
     "VM/ESA": 20, "darwin": 21, "macosx": 21
 }
+
+class RPMSense(IntEnum):
+    Less = 0x02
+    Greater = 0x04
+    Equal = 0x08
+    PreReq = 0x40
+    Interp = 0x100
+    ScriptPre = 0x200
+    ScriptPost = 0x400
+    ScriptPreUn = 0x800
+    ScriptPostUn = 0x1000
+    RPMLib = 0x1000000
 
 #
 # RPM Tag Types
@@ -151,7 +165,7 @@ RPM_TAGS = [RPMTag(*a) for a in [
     (1112, 'provideflags', rpm_tag_int32),
     (1113, 'provideversion', rpm_tag_str_array),
     (1114, 'obsoleteflags', rpm_tag_int32),
-    (1115, 'obsoleteversion', rpm_tag_int32),
+    (1115, 'obsoleteversion', rpm_tag_str_array),
     (1116, 'dirindexes', rpm_tag_int32),
     (1117, 'basenames', rpm_tag_str_array),
     (1118, 'dirnames', rpm_tag_str_array),
@@ -226,6 +240,31 @@ class RPMFileItem(object):
         self.device = device
         self.lang = lang
 
+class RPMDep(object):
+    RE_VERSIONED = re.compile(r'^(?P<name>.*?)\s*(?P<cmp>=|>=|<=|>|<)\s*(?P<version>\d.*?)$')
+
+    CMP_TO_FLAG = {
+        '=' : RPMSense.Equal,
+        '>=' : RPMSense.Equal | RPMSense.Greater,
+        '>' : RPMSense.Greater,
+        '<=' : RPMSense.Equal | RPMSense.Less,
+        '<' : RPMSense.Less
+    }
+
+    def __init__(self, name, version=None, flags=0):
+        m = self.RE_VERSIONED.match(name)
+        if m:
+            name = m.group("name")
+            version = m.group("version")
+            flags |= self.CMP_TO_FLAG[m.group("cmp")]
+
+        if name.startswith("rpmlib("):
+            flags |= RPMSense.RPMLib
+
+        self.name = name
+        self.version = version
+        self.flags = flags
+
 class RPMBuild(object):
     def __init__(self, job, value):
         self.name = job.template(value["name"])
@@ -238,6 +277,14 @@ class RPMBuild(object):
         self.summary = job.template(value.get("summary"))
         self.description = job.template(value.get("description"))
         self.header = {k.lower(): v for k,v in job.template(value.get("header", {})).items()}
+
+        self.provides = []
+        self.requires = [
+            RPMDep("rpmlib(PayloadFilesHavePrefix) <= 3.0.3-1"),
+            RPMDep("rpmlib(CompressedFileNames) <= 3.0.4-1")
+        ]
+        self.conflicts = []
+        self.obsoletes = []
 
         if self.epoch is not None:
             self.name_full = "{0.name}-{0.epoch}:{0.version}-{0.release}".format(self)
@@ -297,6 +344,23 @@ class RPMBuild(object):
             return
         self.header[name.lower()] = value
 
+    def _put_deps(self, header, items, namefield, versionfield, flagfield):
+        if not items:
+            return
+
+        names = []
+        versions = []
+        flags = []
+
+        for item in items:
+            names.append(item.name)
+            versions.append(item.version)
+            flags.append(int(item.flags))
+
+        header[namefield] = names
+        header[versionfield] = versions
+        header[flagfield] = flags
+
     def build(self, job):
         lead = struct.pack("!4sBBhh65sxhh16x",
             # unsigned char magic[4]
@@ -327,6 +391,10 @@ class RPMBuild(object):
             all_dirnames_lookup = {val:idx for idx,val in enumerate(all_dirnames)}
 
             header = dict(self.header)
+            self._put_deps(header, self.requires, 'requirename', 'requireversion', 'requireflags')
+            self._put_deps(header, self.provides, 'providename', 'provideversion', 'provideflags')
+            self._put_deps(header, self.conflicts, 'conflictname', 'conflictversion', 'conflictflags')
+            self._put_deps(header, self.obsoletes, 'obsoletename', 'obsoleteversion', 'obsoleteflags')
             header['dirnames'] = all_dirnames
             header['dirindexes'] = [all_dirnames_lookup[f.dirname] for f in self.files]
             header['basenames'] = [f.basename for f in self.files]
