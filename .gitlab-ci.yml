@@ -21,24 +21,11 @@ py37:
     script:
         - ./ci/run-tests.sh py37
 
-package-wheel:
+package-dist:
     image: python:3
     stage: package
     script:
-        - python setup.py bdist_wheel
-    artifacts:
-        paths:
-            - dist/
-        expire_in: 2 years
-    only:
-        - master
-        - tags
-
-package-sdist:
-    image: python:3
-    stage: package
-    script:
-        - python setup.py sdist
+        - python setup.py sdist bdist_wheel
     artifacts:
         paths:
             - dist/
