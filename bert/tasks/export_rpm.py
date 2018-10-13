@@ -4,6 +4,7 @@ from enum import IntEnum
 import gzip
 import hashlib
 import io
+from itertools import chain
 import os
 import re
 import tarfile
@@ -319,6 +320,16 @@ class RPMBuild(object):
         else:
             raise RuntimeError("Unknown compressor")
 
+        self._append_deps(self.provides, job.template(value.get("provides", None)))
+        self._append_deps(self.requires, job.template(value.get("requires", None)))
+        self._append_deps(self.conflicts, job.template(value.get("conflicts", None)))
+        self._append_deps(self.obsoletes, job.template(value.get("obsoletes", None)))
+
+        has_vers_provide_or_obsolete = any(i.version is not None for i in chain(self.provides, self.obsoletes))
+        has_vers_prereq = any(i.version is not None and (i.flags & RPMSense.PreReq) for i in chain(self.requires, self.conflicts))
+        if has_vers_provide_or_obsolete or has_vers_prereq:
+            self.requires.insert(0, RPMDep("rpmlib(VersionedDependencies) <= 3.0.3-1"))
+
         if self.epoch is not None:
             self.name_full = "{0.name}-{0.epoch}:{0.version}-{0.release}".format(self)
         else:
@@ -377,6 +388,13 @@ class RPMBuild(object):
             return
         self.header[name.lower()] = value
 
+    def _append_deps(self, store, items):
+        if not items:
+            return
+
+        for item in items:
+            store.append(RPMDep(item))
+
     def _put_deps(self, header, items, namefield, versionfield, flagfield):
         if not items:
             return
@@ -387,7 +405,10 @@ class RPMBuild(object):
 
         for item in items:
             names.append(item.name)
-            versions.append(item.version)
+            if item.version is not None:
+                versions.append(item.version)
+            else:
+                versions.append("")
             flags.append(int(item.flags))
 
         header[namefield] = names
