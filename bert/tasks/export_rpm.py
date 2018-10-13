@@ -11,6 +11,16 @@ import tempfile
 import shutil
 import struct
 
+try:
+    import bz2
+except ImportError:
+    bz2 = None
+
+try:
+    import lzma
+except ImportError:
+    lzma = None
+
 from . import Task
 from ..utils import IOFromIterable
 
@@ -277,14 +287,37 @@ class RPMBuild(object):
         self.summary = job.template(value.get("summary"))
         self.description = job.template(value.get("description"))
         self.header = {k.lower(): v for k,v in job.template(value.get("header", {})).items()}
+        self.compress_type = job.template(value.get("compress-type", "bzip2"))
 
         self.provides = []
         self.requires = [
-            RPMDep("rpmlib(PayloadFilesHavePrefix) <= 3.0.3-1"),
+            RPMDep("rpmlib(PayloadFilesHavePrefix) <= 4.0-1"),
             RPMDep("rpmlib(CompressedFileNames) <= 3.0.4-1")
         ]
         self.conflicts = []
         self.obsoletes = []
+
+        self.payload_flags = 0
+        if not self.compress_type:
+            self.compress_type = "gzip"
+
+        if self.compress_type == "gzip":
+            self.payload_flags = self.compress_level = 9
+            self.compressor = lambda f: gzip.GzipFile(filename='', fileobj=f, compresslevel=self.compress_level)
+        elif self.compress_type == "bzip2":
+            if bz2 is None:
+                raise RuntimeError("bzip2 compression not available")
+            self.payload_flags = self.compress_level = 9
+            self.compressor = lambda f: bz2.BZ2File(f, mode='a', compresslevel=self.compress_level)
+            self.requires.append(RPMDep("rpmlib(PayloadIsBzip2) <= 3.0.5-1"))
+        elif self.compress_type == "xz":
+            if lzma is None:
+                raise RuntimeError("LZMA compression not available")
+            self.payload_flags = 7 # XXX Sometimes this is 2?  Why?
+            self.compressor = lambda f: lzma.LZMAFile(f, mode='a', preset=self.payload_flags, check=lzma.CHECK_SHA256)
+            self.requires.append(RPMDep("rpmlib(PayloadIsXz) <= 5.2-1"))
+        else:
+            raise RuntimeError("Unknown compressor")
 
         if self.epoch is not None:
             self.name_full = "{0.name}-{0.epoch}:{0.version}-{0.release}".format(self)
@@ -412,8 +445,8 @@ class RPMBuild(object):
             header['filelangs'] = [f.lang for f in self.files]
             header['size'] = self.install_size
             header['payloadformat'] = "cpio"
-            header['payloadcompressor'] = "gzip"
-            header['payloadflags'] = 9
+            header['payloadcompressor'] = self.compress_type
+            header['payloadflags'] = self.payload_flags
             rpm_header = make_rpm_header(header)
 
             header_f.write(rpm_header)
@@ -441,8 +474,8 @@ class RPMBuild(object):
                 shutil.copyfileobj(header_f, f)
 
                 contents_f.seek(0)
-                with gzip.GzipFile(filename='', fileobj=f, compresslevel=9) as gz_f:
-                    shutil.copyfileobj(contents_f, gz_f)
+                with self.compressor(f) as comp_f:
+                    shutil.copyfileobj(contents_f, comp_f)
 
         os.rename(self.dest+".tmp", self.dest)
 
