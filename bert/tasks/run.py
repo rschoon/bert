@@ -1,4 +1,6 @@
 
+import subprocess
+
 from . import Task
 
 class TaskRun(Task, name="run"):
