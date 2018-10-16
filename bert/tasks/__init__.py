@@ -17,16 +17,22 @@ def _find_task_cls(name):
     except KeyError:
         pass
 
-    mod_name = _make_mod_name(__name__, name)
-    try:
-        __import__(mod_name)
-    except ImportError:
-        return None
+    for mod_name in _iter_possible_task_mod_names(name):
+        mod_name_full = _make_mod_name(__name__, mod_name)
+        try:
+            __import__(mod_name_full)
+        except ImportError:
+            pass
 
     try:
         return TASKS[name]
     except KeyError:
         return None
+
+def _iter_possible_task_mod_names(name):
+    yield name
+    if name.startswith("local-"):
+        yield name[6:]
 
 def _make_mod_name(basename, name):
     name = name.replace("-", "_")
