@@ -155,13 +155,14 @@ class BuildJob(object):
             self.saved_vars = {}
         self.vars = BuildVars(self)
 
-    def setup(self, image):
+    def setup(self, image, run_setup=True):
         self.src_image = image
 
         click.echo(">>> Pulling: {}".format(self.src_image))
         self.docker_client.images.pull(self.src_image)
 
-        self.run_task(BertTask(OrderedDict(setup=None)))
+        if run_setup:
+            self.run_task(BertTask(OrderedDict(setup=None)))
 
     def run_task(self, task):
         self.current_task = CurrentTask(task)
@@ -421,6 +422,7 @@ class BertStage(BertScope):
 
         self.name = name
         self.build_tag = data.pop("build-tag", None)
+        self.run_setup = data.pop("run-setup", True)
         self.work_dir = data.pop("work-dir", None)
         try:
             self.from_ = expect_list(data.pop("from"), str)
@@ -452,7 +454,7 @@ class BertStage(BertScope):
 
     def _build_from(self, job, config, img):
         try:
-            job.setup(img)
+            job.setup(img, run_setup=self.run_setup)
             for task in self.tasks:
                 job.run_task(task)
 
