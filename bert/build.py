@@ -134,7 +134,7 @@ class CurrentTask(object):
         return config.get("Cmd")
 
 class BuildJob(object):
-    def __init__(self, stage, config, vars=None):
+    def __init__(self, stage, config, vars=None, work_dir=None):
         # XXX timeout is problematic
         self.docker_client = docker.from_env(timeout=600)
 
@@ -143,7 +143,7 @@ class BuildJob(object):
         self.stage = stage
         self.config = config
         self.changes = []
-        self.work_dir = "/bert-build"
+        self.work_dir = "/bert-build" if work_dir is None else work_dir
         self.cache_dir = "cache"
         self.src_image = None
         self.current_task = None
@@ -173,10 +173,12 @@ class BuildJob(object):
 
         ct = self.current_task.task
         env = self._make_env()
+        work_dir = self.work_dir
 
         key_params = {}
         if env:
             key_params["env"] = env
+            key_params["work_dir"] = work_dir
         key_params.update(ct.key_params)
 
         key_id = self.current_task.key_id = json_hash('sha256', [
@@ -206,7 +208,7 @@ class BuildJob(object):
             image=self.src_image,
             labels={LABEL_BUILD_ID : key_id},
             command=command,
-            working_dir=self.work_dir,
+            working_dir=work_dir,
             stdin_open=True,
             environment=["{}={}".format(*p) for p in env.items()],
             tty=True
@@ -419,6 +421,7 @@ class BertStage(BertScope):
 
         self.name = name
         self.build_tag = data.pop("build-tag", None)
+        self.work_dir = data.pop("work-dir", None)
         try:
             self.from_ = expect_list(data.pop("from"), str)
         except KeyError:
@@ -440,7 +443,7 @@ class BertStage(BertScope):
         else:
             images = config.images
 
-        job = BuildJob(self, config, vars=vars)
+        job = BuildJob(self, config, vars=vars, work_dir=self.work_dir)
 
         for from_image in images:
             self._build_from(job, config, from_image)
