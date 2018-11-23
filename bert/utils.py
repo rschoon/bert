@@ -7,6 +7,32 @@ import os
 import re
 import struct
 
+class open_output(object):
+    def __init__(self, filename, mode="wb"):
+        self._dirname = os.path.dirname(filename)
+        self._tmpname = filename+".tmp"
+        self.filename = filename
+        self.mode = mode
+        self._fileobj = None
+
+    def __enter__(self):
+        if self._dirname:
+            os.makedirs(self._dirname, exist_ok=True)
+        self._fileobj = open(self._tmpname, self.mode)
+        return self._fileobj
+
+    def __exit__(self, type, value, tb):
+        self.close(value is None)
+
+    def close(self, commit=True):
+        if self._fileobj is not None:
+            self._fileobj.close()
+            if commit:
+                os.rename(self._tmpname, self.filename)
+            else:
+                os.unlink(self._tmpname)
+            self._fileobj = None
+
 def expect_file_mode(mode, _sub_mode_re=re.compile('^(u|g|o)=([rwx]+)$')):
     if mode is None or mode == "":
         return None

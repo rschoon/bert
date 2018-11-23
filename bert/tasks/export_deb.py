@@ -5,7 +5,7 @@ import os
 import tarfile
 
 from . import Task
-from ..utils import IOFromIterable
+from ..utils import IOFromIterable, open_output
 
 class TaskExportDeb(Task, name="export-deb"):
     CONTROL_FIELD_ORDER_START = (
@@ -41,7 +41,7 @@ class TaskExportDeb(Task, name="export-deb"):
             raise RuntimeError("Need a path")
 
         container = job.create({})
-        with open(dest+".tmp", "w+b") as far:
+        with open_output(dest, "w+b") as far:
             far.write(b"!<arch>\n")
 
             # package header
@@ -66,7 +66,6 @@ class TaskExportDeb(Task, name="export-deb"):
                     self._copy_data(container, tarf, path)
             self._update_ar_size(far, offset_sz_data, far.tell() - data_start)
             self._align_ar_data(far)
-        os.rename(dest+".tmp", dest)
 
     def _update_ar_size(self, fileobj, write_offset, new_size):
         here = fileobj.tell()

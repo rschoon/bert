@@ -23,7 +23,7 @@ except ImportError:
     lzma = None
 
 from . import Task
-from ..utils import IOFromIterable
+from ..utils import IOFromIterable, open_output
 
 # This is derived from arch_canon entries in rpmrc
 # (We don't include the uname equiv portion)
@@ -485,7 +485,7 @@ class RPMBuild(object):
                 'sig_md5' : self.contents_md5.digest()
             })
 
-            with open(self.dest+".tmp", "wb") as f:
+            with open_output(self.dest, "wb") as f:
                 f.write(lead)
 
                 f.write(sig_header)
@@ -497,8 +497,6 @@ class RPMBuild(object):
                 contents_f.seek(0)
                 with self.compressor(f) as comp_f:
                     shutil.copyfileobj(contents_f, comp_f)
-
-        os.rename(self.dest+".tmp", self.dest)
 
     def _copy_data(self, container, cpiof, path):
         dirname = os.path.dirname(path)

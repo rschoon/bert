@@ -4,7 +4,7 @@ import re
 import tarfile
 
 from . import Task
-from ..utils import IOFromIterable, expect_file_mode
+from ..utils import IOFromIterable, expect_file_mode, open_output
 
 RE_TAR_EXT = re.compile(r'\.tar\.(bz2|xz|gz)$')
 
@@ -31,8 +31,7 @@ class TaskExportTar(Task, name="export-tar"):
         if not comp:
             comp = ""
 
-        os.makedirs(os.path.dirname(dest), exist_ok=True)
-        with open(dest+".tmp", "wb") as f:
+        with open_output(dest, "wb") as f:
             if preamble:
                 if isinstance(preamble, bytes):
                     f.write(preamble)
@@ -46,8 +45,6 @@ class TaskExportTar(Task, name="export-tar"):
 
             if mode is not None:
                 os.fchmod(f.fileno(), mode)
-
-        os.rename(dest+".tmp", dest)
 
     def _copy_tar(self, container, path, tout):
         tstream, tstat = container.get_archive(path)
