@@ -1,5 +1,6 @@
 stages:
     - test
+    - mirror
     - package
 #    - upload
 
@@ -28,6 +29,18 @@ py37:
     stage: test
     script:
         - ./ci/run-tests.sh py37
+
+mirror-github:
+    image: docker.git.cornhooves.org/build-tools/git-mirror:latest
+    stage: mirror
+    script:
+        - ssh-load-key
+        - git-mirror
+    variables:
+        GIT_MIRROR_URL: git@github.com:rschoon/bert.git
+    only:
+        - master
+        - tags
 
 package-dist:
     image: python:3
