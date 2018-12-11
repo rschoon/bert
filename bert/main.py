@@ -1,5 +1,6 @@
 
 import os
+import sys
 
 import click
 
@@ -16,8 +17,14 @@ def cli(input, shell_fail):
         if os.path.isdir(inp):
             inp = os.path.join(inp, "bert-build.yml")
 
-        build = BertBuild(inp, shell_fail=shell_fail)
+        try:
+            build = BertBuild(inp, shell_fail=shell_fail)
+        except FileNotFoundError as fef:
+            click.echo(str(fef), err=True)
+            sys.exit(1)
+
         try:
             build.build()
         except BuildFailed as bf:
             click.echo("Failed({})".format(bf), err=True)
+            sys.exit(1)
