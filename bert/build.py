@@ -6,10 +6,10 @@ import dockerpty
 import jinja2
 import json
 import os
-import yaml
 
 from .tasks import get_task
 from .utils import json_hash
+from .yaml import from_yaml
 from .exc import BuildFailed
 
 LABEL_BUILD_ID = "bert.build_id"
@@ -17,20 +17,6 @@ LABEL_BUILD_ID = "bert.build_id"
 class BuildImageExists(Exception):
     def __init__(self, image):
         self.image = image
-
-#
-#
-#
-
-class YamlLoader(yaml.SafeLoader):
-    pass
-
-def _construct_yaml_mapping(loader, node):
-    loader.flatten_mapping(node)
-    return OrderedDict(loader.construct_pairs(node))
-
-YamlLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
-                           _construct_yaml_mapping)
 
 #
 #
@@ -372,7 +358,7 @@ class BertScope(object):
         if include_vars:
             for inc_fn in include_vars:
                 with open(inc_fn, "r") as f:
-                    self.global_vars.update(yaml.load(f, YamlLoader))
+                    self.global_vars.update(from_yaml(f))
 
         svars = config.pop('vars', None)
         if svars:
@@ -487,7 +473,7 @@ class BertBuild(BertScope):
 
     def _parse(self):
         with open(self.filename, "r") as f:
-            config = yaml.load(f, YamlLoader)
+            config = from_yaml(f)
 
         self.load_global_vars(config)
 
