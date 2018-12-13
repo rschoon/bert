@@ -134,7 +134,7 @@ class BuildJob(object):
         self.stage = stage
         self.config = config
         self.changes = []
-        self.work_dir = "/bert-build" if work_dir is None else work_dir
+        self.work_dir = "/" if work_dir is None else work_dir
         self.cache_dir = "cache"
         self.src_image = None
         self.current_task = None
@@ -146,14 +146,11 @@ class BuildJob(object):
             self.saved_vars = {}
         self.vars = BuildVars(self)
 
-    def setup(self, image, run_setup=True):
+    def setup(self, image):
         self.src_image = image
 
         click.echo(">>> Pulling: {}".format(self.src_image))
         self.docker_client.images.pull(self.src_image)
-
-        if run_setup:
-            self.run_task(BertTask(OrderedDict(setup=None)))
 
     def run_task(self, task):
         self.current_task = CurrentTask(task)
@@ -413,7 +410,6 @@ class BertStage(BertScope):
 
         self.name = name
         self.build_tag = data.pop("build-tag", None)
-        self.run_setup = data.pop("run-setup", True)
         self.work_dir = data.pop("work-dir", None)
         try:
             self.from_ = expect_list(data.pop("from"), str)
@@ -445,7 +441,7 @@ class BertStage(BertScope):
 
     def _build_from(self, job, config, img):
         try:
-            job.setup(img, run_setup=self.run_setup)
+            job.setup(img)
             for task in self.tasks:
                 job.run_task(task)
 
