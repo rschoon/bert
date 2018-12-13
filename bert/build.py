@@ -78,8 +78,13 @@ class BertTask(object):
     def display_name(self):
         if self.name:
             return self.name
-        if self._task.value is not None:
-            return "%s: %s"%(self.task_name, self._task.value)
+
+        value = self._task.value
+        if value is not None:
+            if isinstance(value, (dict, list, set)):
+                value = json.dumps(value)
+            return "%s: %s"%(self.task_name, value)
+
         return self.task_name
 
     def run(self, job):
