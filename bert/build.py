@@ -51,19 +51,28 @@ class BuildVars(dict):
             job.put_vars(self)
 
 class BertTask(object):
-    def __init__(self, taskinfo):
+    def __init__(self, action, value=None, name=None, env=None, when=None):
+        self.name = name
+        self.env = env
+        self.when = when
+        self._task = get_task(action, value)
+
+    @classmethod
+    def create_from_dict(cls, taskinfo):
         # this may be first instead of action
-        self.name = taskinfo.pop("name", None)
+        name = taskinfo.pop("name", None)
 
         # action is always early
         action, value = taskinfo.popitem(last=False)
 
         # other props
-        self.env = taskinfo.pop("env", None)
-        self.when = taskinfo.pop("when", None)
+        env = taskinfo.pop("env", None)
+        when = taskinfo.pop("when", None)
 
-        assert not taskinfo
-        self._task = get_task(action, value)
+        if taskinfo:
+            raise ValueError("Unexpected attributes %r"%", ".join(taskinfo.values()))
+
+        return cls(action, name=name, value=value, env=env, when=when)
 
     @property
     def task_name(self):
@@ -134,7 +143,7 @@ class BuildJob(object):
         self.stage = stage
         self.config = config
         self.changes = []
-        self.work_dir = "/" if work_dir is None else work_dir
+        self.work_dir = work_dir
         self.cache_dir = "cache"
         self.src_image = None
         self.current_task = None
@@ -150,7 +159,16 @@ class BuildJob(object):
         self.src_image = image
 
         click.echo(">>> Pulling: {}".format(self.src_image))
-        self.docker_client.images.pull(self.src_image)
+        img = self.docker_client.images.pull(self.src_image)
+
+        if self.work_dir is None:
+            wd = img.attrs["Config"].get("WorkingDir")
+            if wd:
+                self.work_dir = wd
+            else:
+                self.work_dir = "/"
+        else:
+            self.run_task(BertTask('set-image-attr', {'work-dir':self.work_dir}))
 
     def run_task(self, task):
         self.current_task = CurrentTask(task)
@@ -422,7 +440,7 @@ class BertStage(BertScope):
     def _iter_parse_tasks(self, tasks):
         tasks = expect_list(tasks, OrderedDict)
         for task in tasks:
-            yield BertTask(task)
+            yield BertTask.create_from_dict(task)
 
     def build(self, config, vars=None):
         vars = dict(vars) if vars else {}
