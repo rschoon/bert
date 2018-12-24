@@ -30,7 +30,8 @@ setup(
         'docker',
         'dockerpty',
         'jinja2',
-        'requests'
+        'requests',
+        'whatthepatch'
     ],
     entry_points = {
         'console_scripts' : [
