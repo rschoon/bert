@@ -11,10 +11,11 @@ def read(filename):
         return f.read()
 
 def read_version(filename):
-    force_version = os.environ.get("BERT_FORCE_BUILD_VERSION")
+    version = re.search(r"__version__ = ('|\")(.*?)('|\")", read(filename)).group(2)
+    force_version = os.environ.get("BERT_FORCE_DIST_VERSION")
     if force_version:
-        return force_version
-    return re.search(r"__version__ = ('|\")(.*?)('|\")", read(filename)).group(2)
+        return force_version.format(version=version)
+    return version
 
 setup(
     name = 'bert',

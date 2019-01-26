@@ -46,7 +46,7 @@ package-dist:
     image: python:3
     stage: package
     script:
-        - python setup.py sdist bdist_wheel
+        - ./ci/build-dist.sh
     artifacts:
         paths:
             - dist/
