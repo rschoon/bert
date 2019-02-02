@@ -9,6 +9,10 @@ from ..utils import IOFromIterable, expect_file_mode, open_output
 RE_TAR_EXT = re.compile(r'\.tar\.(bz2|xz|gz)$')
 
 class TaskExportTar(Task, name="export-tar"):
+    """
+    Export files to a tar archive file.
+    """
+
     def run(self, job):
         try:
             dest = job.template(self.value["dest"])

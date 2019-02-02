@@ -582,6 +582,10 @@ class RPMBuild(object):
         )
 
 class TaskExportRpm(Task, name="export-rpm"):
+    """
+    Export files to a rpm package.
+    """
+
     def run(self, job):
         build = RPMBuild(job, self.value)
 

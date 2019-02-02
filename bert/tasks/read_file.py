@@ -5,6 +5,10 @@ import tempfile
 from . import Task
 
 class TaskReadFile(Task, name="read-file"):
+    """
+    Read contents of a file in the image into a variable.
+    """
+
     def run(self, job):
         container = job.create({})
 

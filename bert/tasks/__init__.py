@@ -1,5 +1,6 @@
 
 import keyword as _keyword
+import os
 
 from ..exc import BuildFailed
 
@@ -10,6 +11,18 @@ def get_task(name, value):
     if cls is None:
         raise ValueError("No task called `%s'."%(name,))
     return cls(value)
+
+_tasks_fully_loaded = False
+def iter_tasks():
+    global _tasks_fully_loaded
+    if not _tasks_fully_loaded:
+        for mn in os.listdir(os.path.dirname(__file__)):
+            if mn.endswith(".py"):
+                mn = mn[:-3]
+                __import__(_make_mod_name(__name__, mn))
+
+    for task in TASKS.values():
+        yield task
 
 def _find_task_cls(name):
     try:

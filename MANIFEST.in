@@ -2,3 +2,6 @@ include LICENSE
 include tox.ini
 recursive-include ci *.sh
 recursive-include tests *.py
+recursive-include docs *.py
+recursive-include docs *.rst
+recursive-include . .keepme

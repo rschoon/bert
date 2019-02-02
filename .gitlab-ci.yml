@@ -50,10 +50,18 @@ package-dist:
     artifacts:
         paths:
             - dist/
-        expire_in: 2 years
-    only:
-        - master
-        - tags
+        expire_in: 1 year
+
+package-docs:
+    image: python:3
+    stage: package
+    script:
+        - pip install ".[docs]"
+        - ./ci/build-docs.sh
+    artifacts:
+        paths:
+            - dist/
+        expire_in: 1 year
 
 #upload:
 #    image: docker.git.cornhooves.org/docker-apps/python-pkg-tools:latest
