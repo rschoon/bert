@@ -7,6 +7,10 @@ from . import Task
 from ..utils import file_hash
 
 class TaskAdd(Task, name="add"):
+    """
+    Add a file or directory.
+    """
+
     def run(self, job):
         path = job.template(self.value)
 

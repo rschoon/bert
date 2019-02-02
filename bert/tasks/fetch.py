@@ -9,6 +9,10 @@ from . import Task
 from ..utils import file_hash, value_hash
 
 class TaskFetch(Task, name="fetch"):
+    """
+    Fetch a value from a url and save as a file in the image or variable.
+    """
+
     def run(self, job):
         value = job.template(self.value)
 

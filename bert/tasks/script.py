@@ -10,6 +10,10 @@ from . import Task
 from ..utils import file_hash, value_hash
 
 class TaskScript(Task, name="script"):
+    """
+    Run a script on the container image.
+    """
+
     def run(self, job):
         script = contents = None
         if isinstance(self.value, dict):

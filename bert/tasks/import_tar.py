@@ -6,6 +6,10 @@ from . import Task
 from ..utils import file_hash
 
 class TaskImportTar(Task, name="import-tar"):
+    """
+    Import files from a tar archive file into the image.
+    """
+
     def run(self, job):
         if isinstance(self.value, str):
             value = {'src' : value}

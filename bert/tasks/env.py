@@ -2,6 +2,10 @@
 from . import Task
 
 class TaskEnv(Task, name="env"):
+    """
+    Set container environment.
+    """
+
     def run(self, job):
         envlist = {
             job.template(k) : job.template(v) for k,v in self.value.items()

@@ -34,6 +34,9 @@ setup(
         'requests',
         'whatthepatch'
     ],
+    extras_require = {
+        'docs':  ["Sphinx"],
+    },
     entry_points = {
         'console_scripts' : [
             "bert=bert:cli",

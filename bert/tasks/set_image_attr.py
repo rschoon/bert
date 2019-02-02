@@ -2,10 +2,14 @@
 from . import Task
 
 class TaskEnv(Task, name="set-image-attr"):
+    """
+    Set image attributes.
+    """
+
     def run(self, job):
         job_args = {}
         commit_args = {}
-        for k,v in self.value.items()
+        for k,v in self.value.items():
             k,v = job.template(k), job.template(v) 
 
             job_args[k] = v

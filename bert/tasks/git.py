@@ -97,6 +97,10 @@ class GitRun(object):
         return hashval.decode('utf-8').strip()
 
 class TaskGit(Task, name="git"):
+    """
+    Add a git checkout to container image.
+    """
+
     def setup(self):
         self.repo = self.value['repo']
         self.path = self.value.get('path') or self.value.get('dest')

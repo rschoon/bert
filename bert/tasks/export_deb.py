@@ -8,6 +8,10 @@ from . import Task
 from ..utils import IOFromIterable, open_output
 
 class TaskExportDeb(Task, name="export-deb"):
+    """
+    Export files to a debian package.
+    """
+
     CONTROL_FIELD_ORDER_START = (
         'Package', 'Version', 'Architecture', 'Section'
     )
