@@ -1,6 +1,6 @@
 
 import keyword as _keyword
-import os
+import os as _os
 
 from ..exc import BuildFailed
 
@@ -16,7 +16,7 @@ _tasks_fully_loaded = False
 def iter_tasks():
     global _tasks_fully_loaded
     if not _tasks_fully_loaded:
-        for mn in os.listdir(os.path.dirname(__file__)):
+        for mn in _os.listdir(_os.path.dirname(__file__)):
             if mn.endswith(".py"):
                 mn = mn[:-3]
                 __import__(_make_mod_name(__name__, mn))
