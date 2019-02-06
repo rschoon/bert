@@ -1,7 +1,7 @@
 
 import unittest
 
-class ExpectFileMode(unittest.TestCase):
+class TestExpectFileMode(unittest.TestCase):
     def setUp(self):
         from bert.utils import expect_file_mode
         self.expect_file_mode = expect_file_mode

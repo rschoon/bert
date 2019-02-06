@@ -4,7 +4,7 @@ import unittest
 def line_col(item):
     return item.line, item.column
 
-class ExpectFileMode(unittest.TestCase):
+class TestFromYaml(unittest.TestCase):
     def setUp(self):
         from bert.yaml import from_yaml
         self.from_yaml = from_yaml
