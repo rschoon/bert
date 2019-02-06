@@ -1,0 +1,27 @@
+This is is a list of greetings:
+hello, apples
+bye, bananas
+hello, cabbage
+bye, decaf
+hello, earthworm
+bye, feather
+hello, goose
+bye, horse
+hello, insect
+bye, jelly
+hello, kidney
+bye, llama
+hello, moon
+bye, newsletter
+hello, octopus
+bye, penguin
+hello, quilt
+hello, railcar
+bye, sailboat
+hello, train
+bye, umbrella
+bye, vineyard
+hello, world
+bye, xenolith
+hello, yak
+bye, zephyr

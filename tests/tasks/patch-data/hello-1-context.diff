@@ -1,0 +1,19 @@
+*** a/hello.txt	2019-01-01 11:11:11.123456789 -0700
+--- b/hello.txt	2019-01-01 11:11:11.123456789 -0700
+***************
+*** 9,15 ****
+  hello, insect
+  bye, jelly
+  hello, kidney
+! bye, llama
+  hello, moon
+  bye, newsletter
+  hello, octopus
+--- 9,15 ----
+  hello, insect
+  bye, jelly
+  hello, kidney
+! hello, llama
+  hello, moon
+  bye, newsletter
+  hello, octopus

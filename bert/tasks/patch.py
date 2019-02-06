@@ -1,4 +1,5 @@
 
+import collections
 import os
 import posixpath
 import shutil
@@ -10,69 +11,163 @@ import whatthepatch
 from . import Task
 from ..utils import file_hash, IOFromIterable
 
-class MatchCandidate(object):
-    def __init__(self, offset):
-        self.offset = offset
-        self.lines_matched = 1
+class PatchError(Exception):
+    pass
 
-def _apply_diff_seek(fileobj, offset, changes):
-    if not changes:
-        return
+class PatchedFile(object):
+    def __init__(self, filename, lines=None, eol=None):
+        self.filename = filename
+        self.eol = eol
+        self.offset_moved = 0
 
-    fileobj.seek(offset)
+        if lines is None:
+            try:
+                with open(self.filename, "r") as fileobj:
+                    self.lines = list(self._load_lines(fileobj))
+            except FileNotFoundError as exc:
+                raise PatchError("%s does not exist"%self.filename) from exc
+        else:
+            self.lines = list(self._load_lines(lines))
 
-    lines = list(fileobj)
-    line_offset = changes[0][0] # XXX This only works with context
-    old_i = 0
-    new_i = 0
-    for old, new, line in changes:
-        if old is not None:
-            old -= line_offset
-        if new is not None:
-            new -= line_offset
+    def _load_lines(self, lines):
+        eol_count = collections.defaultdict(int)
 
-        if old is not None and new is None:
-            del lines[old-1-old_i+new_i]
-            old_i += 1
-        elif old is None and new is not None:
-            # TODO XXX we assume unix newlines here
-            lines.insert(new-1, line+"\n")
-            new_i += 1
+        for line in lines:
+            line_r = line.rstrip('\r\n')
+            eol = line[len(line_r):]
+            eol_count[eol] += 1
+            yield line_r, eol
 
-    fileobj.seek(offset)
-    for line in lines:
-        fileobj.write(line)
-
-def apply_diff(fileobj, changes):
-    before_lines = [line[2] for line in changes if line[0] is not None]
-
-    # TODO: This search works better with context, but
-    # might not work well with "normal" diff
-    candidates = []
-    while True:
-        line = fileobj.readline()
-        if not line:
-            break
-        line_trim = line.rstrip('\r\n')
-
-        dead = []
-        for c in candidates:
-            if before_lines[c.lines_matched] == line_trim:
-                c.lines_matched += 1
+        if self.eol is None:
+            if eol_count:
+                self.eol = max(eol_count, key=lambda k: eol_count[k])
             else:
-                dead.append(c)
+                self.eol = '\n'
 
-        for c in dead:
-            candidates.remove(c)
+    def save(self):
+        if self.filename is None:
+            return
 
-        if line_trim == before_lines[0]:
-            candidates.append(MatchCandidate(fileobj.tell()))
+        # TODO: Recall first changed line and offset, and only update starting from there
+        with open(self.filename, "w") as fileobj:
+            for line in self.lines:
+                fileobj.write("%s%s"%line)
 
-        for c in candidates:
-            if c.lines_matched == len(before_lines) - 1:
-                return _apply_diff_seek(fileobj, c.offset, changes)
+    def apply_diff(self, changes):
+        if not changes:
+            return
 
-    raise RuntimeError("Diff rejected, old not found")
+        # TODO: Handle lack of context in diff?
+        before_lines = [line[2] for line in changes if line[0] is not None]
+        before_start = changes[0][0] + self.offset_moved
+
+        # best case is diff is exactly where we expect it
+        if self._match_at(before_start, before_lines):
+            return self._apply_at(before_start, 0, changes)
+
+        # text likely moved, so start looking forward and backwards
+        backward_at = forward_at = 0
+        while before_start + forward_at < len(self.lines) or before_start + backward_at > 0:
+            if before_start + forward_at < len(self.lines):
+                forward_at += 1
+                if self._match_at(before_start + forward_at, before_lines):
+                    return self._apply_at(before_start, forward_at, changes)
+
+            if before_start + backward_at > 0:
+                backward_at -= 1
+                if self._match_at(before_start + backward_at, before_lines):
+                    return self._apply_at(before_start, backward_at, changes)
+
+        raise PatchError("Patch rejected")
+
+    def _match_at(self, lineno_start, lines):
+        for linenum, line in enumerate(lines, start=lineno_start):
+            try:
+                orig = self.lines[linenum]
+            except IndexError:
+                return False
+
+            if orig[0] != line:
+                return False
+        return True
+
+    def _apply_at(self, offset, adj, changes):
+        old_i = 0
+        new_i = 0
+
+        for old, new, line in changes:
+            if old is not None and new is None:
+                del self.lines[adj+old-old_i+new_i]
+                old_i += 1
+            elif old is None and new is not None:
+                self.lines.insert(adj+new, (line, self.eol))
+                new_i += 1
+
+class Patch(object):
+    def __init__(self, patch, strip_dir=0, chdir=None):
+        self.root_dir = None
+        self.file_lookup = None
+        self.strip_dir = strip_dir
+        self.chdir = chdir
+        self.diffs = []
+        self.files = set()
+
+        for diff in whatthepatch.parse_patch(patch):
+            fn = self._diff_path(diff)
+            self.files.add(fn)
+            self.diffs.append(diff)
+
+    def _diff_path(self, diff):
+        path = diff.header.index_path or diff.header.new_path or diff.header.old_path
+        if self.strip_dir > 0:
+            for i in range(self.strip_dir):
+                while path and path[0] == '/':
+                    path = path[1:]
+
+                idx = path.find("/")
+                if idx < 0:
+                    # XXX TODO error if we can't trim here
+                    break
+                path = path[idx+1:]
+        else:
+            while path and path[0] == '/':
+                path = path[1:]
+
+        if self.chdir is not None:
+            path = posixpath.join(self.chdir, path)
+        return path
+
+    def apply(self, root_dir=None, file_lookup=None):
+        if file_lookup is None and root_dir is None:
+            raise ValueError("Either root_dir or file_lookup must be provided")
+
+        patched_files = {}
+        for diff in self.diffs:
+            if not diff.header:
+                # Do we want to allow providing file explicitly to avoid this error?
+                raise RuntimeError("Can't use this patch, no header.")
+
+            fn_orig = fn = self._diff_path(diff)
+            fn_adj = False
+
+            if file_lookup is not None:
+                fn = file_lookup.get(fn)
+                fn_adj = True
+            if root_dir is not None:
+                fn = os.path.join(root_dir, fn)
+                fn_adj = True
+
+            if not fn_adj:
+                raise RuntimeError("Path for changed %r not found"%fn_orig)
+
+            pf = patched_files.get(fn)
+            if pf is None:
+                pf = patched_files[fn] = PatchedFile(fn)
+
+            pf.apply_diff(diff.changes)
+
+        for pf in patched_files.values():
+            pf.save()
 
 class ContainerPatcher(object):
     def __init__(self, container, chdir, strip_dir):
@@ -92,7 +187,7 @@ class ContainerPatcher(object):
     def cleanup(self):
         self.tempdir.cleanup()
 
-    def _load_file(self, fn):
+    def _copy_file(self, fn):
         tstream, tstat = self.container.get_archive(fn)
         tf = IOFromIterable(tstream)
 
@@ -113,50 +208,14 @@ class ContainerPatcher(object):
                 else:
                     self.files[fn] = None
 
-    def _diff_path(self, diff):
-        path = diff.header.index_path or diff.header.new_path or diff.header.old_path
-        if self.strip_dir > 0:
-            for i in range(self.strip_dir):
-                while path and path[0] == '/':
-                    path = path[1:]
-
-                idx = path.find("/")
-                if idx < 0:
-                    # XXX TODO error if we can't trim here
-                    break
-                path = path[idx+1:]
-        else:
-            while path and path[0] == '/':
-                path = path[1:]
-
-        return posixpath.join(self.chdir, path)
-
-    def _apply_diff(self, diff):
-        fn = self._diff_path(diff)
-        working_fn = self.files.get(fn)
-        if working_fn is None:
-            raise RuntimeError("Does not exist or is not regular file")
-
-        with open(working_fn, "r+") as f:
-            apply_diff(f, diff.changes)
-
     def apply_patch(self, fn):
         with open(fn) as f:
-            patch = f.read()
+            p = Patcher(f.read(), strip_dir=self.strip_dir)
 
-        diffs = []
-        need_files = set()
-        for diff in whatthepatch.parse_patch(patch):
-            fn = self._diff_path(diff)
-            if fn not in self.files:
-                need_files.add(fn)
-            diffs.append(diff)
-
-        for fn in need_files:
+        for fn in p.files:
             self._load_file(fn)
 
-        for diff in diffs:
-            self._apply_diff(diff)
+        p.apply(file_lookup=self.files)
 
     def save(self):
         with tempfile.TemporaryFile() as tf:
