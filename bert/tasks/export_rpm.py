@@ -241,7 +241,7 @@ class RPMFileItem(object):
         self.mode = mode
         self.rdev = rdev
         self.mtime = mtime
-        self.md5 = md5 or hashlib.md5()
+        self.md5 = md5
         self.nlink = nlink
         self.linkto = linkto
         self.flags = flags
@@ -456,7 +456,7 @@ class RPMBuild(object):
             header['filemodes'] = [f.mode&0xffff for f in self.files]
             header['filerdevs'] = [f.rdev&0xffff for f in self.files]
             header['filemtimes'] = [f.mtime for f in self.files]
-            header['filemd5s'] = [f.md5.hexdigest() for f in self.files]
+            header['filemd5s'] = [f.md5.hexdigest() if f.md5 is not None else '' for f in self.files]
             header['filelinktos'] = [(f.linkto or "") for f in self.files]
             header['fileflags'] = [f.flags for f in self.files]
             header['fileusername'] = [f.user for f in self.files]
@@ -549,15 +549,17 @@ class RPMBuild(object):
                 cpiof.write(_align_padding(cpiof.tell(), 4))
 
                 # cpio contents
+                md5hash = None
                 sz = 0
-                md5hash = hashlib.md5()
-                while True:
-                    chunk = tdata.read(2**14)
-                    if not chunk:
-                        break
-                    sz += len(chunk)
-                    md5hash.update(chunk)
-                    cpiof.write(chunk)
+                if tdata is not None:
+                    md5hash = hashlib.md5()
+                    while True:
+                        chunk = tdata.read(2**14)
+                        if not chunk:
+                            break
+                        sz += len(chunk)
+                        md5hash.update(chunk)
+                        cpiof.write(chunk)
 
                 self.install_size += sz
                 cpiof.write(_align_padding(cpiof.tell(), 4))
