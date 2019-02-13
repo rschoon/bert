@@ -540,7 +540,7 @@ class RPMBuild(object):
                     b"%08x"%0,
                     b"%08x"%0,
                     b"%08x"%0,
-                    b"%08x"%(len(filename_utf8)-1),
+                    b"%08x"%len(filename_utf8),
                     b"%08x"%0
                 )))
 
