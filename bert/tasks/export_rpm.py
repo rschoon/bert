@@ -525,6 +525,12 @@ class RPMBuild(object):
                 elif ti.gid != 0:
                     group = str(ti.gid)
 
+                size = ti.size
+                if ti.issym():
+                    link_target = ti.linkname.encode('utf-8')
+                    tdata = io.BytesIO(link_target)
+                    size = len(link_target)
+
                 # cpio header
                 filename_utf8 = os.path.join(".", os.path.relpath(filename, "/")).encode('utf-8') + b'\x00'
                 cpiof.write(b"".join((
@@ -535,7 +541,7 @@ class RPMBuild(object):
                     b"%08x"%ti.gid,
                     b"%08x"%nlink,
                     b"%08x"%ti.mtime,
-                    b"%08x"%ti.size,
+                    b"%08x"%size,
                     b"%08x"%0,
                     b"%08x"%0,
                     b"%08x"%0,
@@ -550,23 +556,21 @@ class RPMBuild(object):
 
                 # cpio contents
                 md5hash = None
-                sz = 0
                 if tdata is not None:
                     md5hash = hashlib.md5()
                     while True:
                         chunk = tdata.read(2**14)
                         if not chunk:
                             break
-                        sz += len(chunk)
+                        self.install_size += len(chunk)
                         md5hash.update(chunk)
                         cpiof.write(chunk)
 
-                self.install_size += sz
                 cpiof.write(_align_padding(cpiof.tell(), 4))
 
                 self.files.append(RPMFileItem(
                     filename,
-                    size=ti.size,
+                    size=size,
                     mode=ti.mode,
                     mtime=ti.mtime,
                     md5=md5hash,
