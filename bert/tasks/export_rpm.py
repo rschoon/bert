@@ -441,7 +441,8 @@ class RPMBuild(object):
                 self._copy_data(container, contents_f, path)
             self._write_cpio_trailer(contents_f)
 
-            all_dirnames = sorted(set(f.dirname for f in self.files))
+            files = sorted(self.files, key=lambda f: f.filename)
+            all_dirnames = sorted(set(f.dirname for f in files))
             all_dirnames_lookup = {val:idx for idx,val in enumerate(all_dirnames)}
 
             header = dict(self.header)
@@ -450,20 +451,20 @@ class RPMBuild(object):
             self._put_deps(header, self.conflicts, 'conflictname', 'conflictversion', 'conflictflags')
             self._put_deps(header, self.obsoletes, 'obsoletename', 'obsoleteversion', 'obsoleteflags')
             header['dirnames'] = all_dirnames
-            header['dirindexes'] = [all_dirnames_lookup[f.dirname] for f in self.files]
-            header['basenames'] = [f.basename for f in self.files]
-            header['filesizes'] = [f.size for f in self.files]
-            header['filemodes'] = [f.mode&0xffff for f in self.files]
-            header['filerdevs'] = [f.rdev&0xffff for f in self.files]
-            header['filemtimes'] = [f.mtime for f in self.files]
-            header['filemd5s'] = [f.md5.hexdigest() if f.md5 is not None else '' for f in self.files]
-            header['filelinktos'] = [(f.linkto or "") for f in self.files]
-            header['fileflags'] = [f.flags for f in self.files]
-            header['fileusername'] = [f.user for f in self.files]
-            header['filegroupname'] = [f.group for f in self.files]
-            header['fileinodes'] = [f.inode for f in self.files]
-            header['filedevices'] = [f.device for f in self.files]
-            header['filelangs'] = [f.lang for f in self.files]
+            header['dirindexes'] = [all_dirnames_lookup[f.dirname] for f in files]
+            header['basenames'] = [f.basename for f in files]
+            header['filesizes'] = [f.size for f in files]
+            header['filemodes'] = [f.mode&0xffff for f in files]
+            header['filerdevs'] = [f.rdev&0xffff for f in files]
+            header['filemtimes'] = [f.mtime for f in files]
+            header['filemd5s'] = [f.md5.hexdigest() if f.md5 is not None else '' for f in files]
+            header['filelinktos'] = [(f.linkto or "") for f in files]
+            header['fileflags'] = [f.flags for f in files]
+            header['fileusername'] = [f.user for f in files]
+            header['filegroupname'] = [f.group for f in files]
+            header['fileinodes'] = [f.inode for f in files]
+            header['filedevices'] = [f.device for f in files]
+            header['filelangs'] = [f.lang for f in files]
             header['size'] = self.install_size
             header['payloadformat'] = "cpio"
             header['payloadcompressor'] = self.compress_type
