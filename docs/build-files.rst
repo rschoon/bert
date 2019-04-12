@@ -30,8 +30,8 @@ quotes instead.
 As an extension, most strings are handled using jinja2's templating, using variables
 which can be set using certain directives (such as the ``set-var`` task).
 
-Tasks
------
+Bert Tasks
+----------
 
 The most fundemental structure in the build file is the task list, which is indicated
 by use of the `tasks` key defined as part of a stage, or at the top level of a build file::
@@ -56,8 +56,24 @@ the export-tar task.
 The result for each task will produce a new container image which will be used as the image
 for the next task.
 
-Stages
-------
+Task Schema
+...........
+
+==================  ==============================================================
+   Name             Description
+==================  ==============================================================
+name                Name of job, must be first if provided.
+*action*            Job action, which is the name of is provided as a the map key.
+                    Must be either first, or after name if provided. Parameters are
+                    set as the value.
+when                Condition which can control whether a job is skipped
+env                 Environment variables to pass to job run.  This only applies
+                    to certain types of job.
+==================  ==============================================================
+
+
+Bert Stages
+-----------
 
 Stages allow a build to define multiple groups of tasks.  If tasks are defined at the top level
 of a build file, then the entire file is considered to be a stage.  Otherwise, stages are indicated
@@ -81,8 +97,21 @@ of the stage definition (unless it is provided as a build config)::
             tasks:
                 [...]
 
-Configs
--------
+Stage Schema
+.............
+
+==================  ==============================================================
+   Name             Description
+==================  ==============================================================
+from                Image name to use for jobs
+tasks               List of jobs to run
+build-tag           Docker tag to set on final image in stage
+work-dir            Default working directory to run jobs in job containers
+==================  ==============================================================
+
+
+Bert Configs
+------------
 
 Sometimes you may want to provide different types of builds where each stage is run with different
 parameters such as source image or variables.
@@ -102,3 +131,13 @@ Configs are provided at top level::
             tasks:
                 [...]
 
+Config Schema
+.............
+
+==================  ==============================================================
+   Name             Description
+==================  ==============================================================
+from                Default image name to use for jobs
+include-vars        YAML file to include variables from for all jobs
+variables           Variables to set for all jobs
+==================  ==============================================================
