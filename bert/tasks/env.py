@@ -1,18 +1,19 @@
 
-from . import Task
+from . import Task, TaskVar
 
 class TaskEnv(Task, name="env"):
     """
     Set container environment.
     """
 
-    def run(self, job):
-        envlist = {
-            job.template(k) : job.template(v) for k,v in self.value.items()
-        }
+    schema_doc = False
 
+    class Schema:
+        _env = TaskVar(extra=True)
+
+    def run_with_values(self, job, _env):
         job.create({
-            'env' : envlist
+            'env' : _env
         })
 
-        job.commit(env=envlist)
+        job.commit(env=_env)

@@ -20,7 +20,7 @@
 # -- Project information -----------------------------------------------------
 
 project = 'bert-build'
-copyright = '2018, Robin Schoonover'
+copyright = '2019, Robin Schoonover'
 author = 'Robin Schoonover'
 
 # The short X.Y version

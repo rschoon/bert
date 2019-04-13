@@ -4,7 +4,7 @@ import io
 import os
 import tarfile
 
-from . import Task
+from . import Task, TaskVar
 from ..utils import IOFromIterable, open_output
 
 class TaskExportDeb(Task, name="export-deb"):
@@ -19,30 +19,22 @@ class TaskExportDeb(Task, name="export-deb"):
         'Homepage', 'Description'
     )
 
-    def run(self, job):
+    class Schema:
+        dest = TaskVar("name")
+        paths = TaskVar()
+        compress_type = TaskVar(default="xz")
+        control = TaskVar()
+
+    def run_with_values(self, job, *, dest, paths, compress_type, control):
         # Instead of using dpkg-deb, we'll build it manually.  This
         # allows us to avoid playing games with fakeroot, and copy
         # directly to the data tar.
 
-        try:
-            dest = job.template(self.value["dest"])
-        except KeyError:
-            dest = job.template(self.value["name"])
         if os.path.exists(dest) and not job.changes:
             return
 
-        # allow either
-        paths = self.value.get('paths', [])
-        install_path = self.value.get('install-path')
-        if install_path:
-            paths.append(paths)
-
-        # collect other details
-
-        comp = self.value.get("compress-type", "xz")
-
         if not paths:
-            raise RuntimeError("Need a path")
+            raise ValueError("Need a path")
 
         container = job.create({})
         with open_output(dest, "w+b") as far:
@@ -58,14 +50,14 @@ class TaskExportDeb(Task, name="export-deb"):
             offset_sz_control = self._write_ar_header(far, "control.tar.gz")
             control_start = far.tell()
             with tarfile.open(fileobj=far, mode="w|gz") as tarf:
-                self._write_control(job, tarf)
+                self._write_control(job, tarf, control)
             self._update_ar_size(far, offset_sz_control, far.tell() - control_start)
             self._align_ar_data(far)
 
             # create data
-            offset_sz_data = self._write_ar_header(far, "data.tar."+comp)
+            offset_sz_data = self._write_ar_header(far, "data.tar."+compress_type)
             data_start = far.tell()
-            with tarfile.open(fileobj=far, mode="w|"+comp) as tarf:
+            with tarfile.open(fileobj=far, mode="w|"+compress_type) as tarf:
                 for path in paths:
                     self._copy_data(container, tarf, path)
             self._update_ar_size(far, offset_sz_data, far.tell() - data_start)
@@ -119,8 +111,7 @@ class TaskExportDeb(Task, name="export-deb"):
 
         return (1, key)
 
-    def _write_control(self, job, tarf):
-        control_data = self.value.get('control', {})
+    def _write_control(self, job, tarf, control_data):
         if 'Package' not in control_data:
             raise RuntimeError('Missing control package name')
         if 'Version' not in control_data:

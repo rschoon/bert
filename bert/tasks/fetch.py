@@ -5,7 +5,7 @@ import os
 import requests
 import tempfile
 
-from . import Task
+from . import Task, TaskVar
 from ..utils import file_hash, value_hash
 
 class TaskFetch(Task, name="fetch"):
@@ -13,16 +13,15 @@ class TaskFetch(Task, name="fetch"):
     Fetch a value from a url and save as a file in the image or variable.
     """
 
-    def run(self, job):
-        value = job.template(self.value)
+    class Schema(object):
+        url = TaskVar()
+        params = TaskVar()
+        method = TaskVar(default="GET")
+        dest_var = TaskVar()
+        json = TaskVar(default=False)
+        dest = TaskVar()
 
-        url = value["url"]
-        params = value.get("params", {})
-        method = value.get("method", "GET")
-        dest_var = value.get("dest-var")
-        is_json = value.get("json", False)
-        dest = value.get("dest")
-
+    def run_with_values(self, job, url, params, method, dest_var, json, dest):
         if method == "GET":
             call_req = requests.get
         elif method == "POST":

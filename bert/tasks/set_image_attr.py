@@ -1,25 +1,27 @@
 
-from . import Task
+from . import Task, TaskVar
 
 class TaskEnv(Task, name="set-image-attr"):
     """
     Set image attributes.
     """
 
-    def run(self, job):
+    class Schema:
+        env = TaskVar()
+        work_dir = TaskVar()
+
+    def run(self, job, *, env, work_dir):
         job_args = {}
         commit_args = {}
-        for k,v in self.value.items():
-            k,v = job.template(k), job.template(v) 
 
-            job_args[k] = v
-            if k == "env":
-                commit_args["env"] = v
-            elif k == "work-dir":
-                commit_args["work_dir"] = v
-                job.work_dir = v
-            else:
-                raise RuntimeError("Don't understand %r yet"%k)
+        if env is not None:
+            job_args["env"] = env
+            commit_args["env"] = env
+
+        if work_dir is not None:
+            job_args["work-dir"] = work_dir
+            commit_args["work_dir"] = work_dir
+            job.work_dir = work_dir
 
         job.create(job_args)
         job.commit(**commit_args)

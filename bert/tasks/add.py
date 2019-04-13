@@ -3,7 +3,7 @@ import os
 import tarfile
 import tempfile
 
-from . import Task
+from . import Task, TaskVar
 from ..utils import file_hash
 
 class TaskAdd(Task, name="add"):
@@ -11,9 +11,10 @@ class TaskAdd(Task, name="add"):
     Add a file or directory.
     """
 
-    def run(self, job):
-        path = job.template(self.value)
+    class Schema:
+        path = TaskVar(bare=True)
 
+    def run_with_values(self, job, path):
         container = job.create({
             'value' : path,
             'file_sha256' : file_hash('sha256', path)

@@ -7,7 +7,7 @@ import subprocess
 import tarfile
 import tempfile
 
-from . import Task
+from . import Task, TaskVar
 from ..utils import file_hash
 
 RE_CACHE_SUB = re.compile(r'[^-_.A-Za-z0-9]+')
@@ -23,11 +23,11 @@ def random_id():
     return "%x"%random.randrange(2**32)
 
 class GitRun(object):
-    def __init__(self, job, repo, path, ref):
+    def __init__(self, job, *, repo, dest, ref):
         self.job = job
-        self.repo = job.template(repo)
-        self.path = job.template(path)
-        self.ref = job.template(ref)
+        self.repo = repo
+        self.path = dest
+        self.ref = ref
 
         self.src_path = os.path.join(job.cache_dir, make_cache_key(self.repo))
 
@@ -101,11 +101,11 @@ class TaskGit(Task, name="git"):
     Add a git checkout to container image.
     """
 
-    def setup(self):
-        self.repo = self.value['repo']
-        self.path = self.value.get('path') or self.value.get('dest')
-        self.ref = self.value.get('ref', "master")
+    class Schema:
+        repo = TaskVar()
+        dest = TaskVar('path')
+        ref = TaskVar(default="master")
 
-    def run(self, job):
-        gr = GitRun(job, self.repo, self.path, self.ref)
+    def run_with_values(self, job, **kwargs):
+        gr = GitRun(job, **kwargs)
         gr.run()

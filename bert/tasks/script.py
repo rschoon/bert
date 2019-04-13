@@ -6,7 +6,7 @@ import shlex
 import tarfile
 import tempfile
 
-from . import Task
+from . import Task, TaskVar
 from ..utils import file_hash, value_hash
 
 class TaskScript(Task, name="script"):
@@ -14,18 +14,15 @@ class TaskScript(Task, name="script"):
     Run a script on the container image.
     """
 
-    def run(self, job):
-        script = contents = None
-        if isinstance(self.value, dict):
-            contents = self.value.get("script") or self.value.get("contents")
-            if contents is None:
-                script = job.template([self.value.get("path")])
-            else:
-                contents = job.template(contents)
-        elif isinstance(self.value, list):
-            script = job.template(self.value)
-        else:
-            script = shlex.split(job.template(self.value))
+    class Schema:
+        script = TaskVar(bare=True)
+        contents = TaskVar()
+
+    def run_with_values(self, job, *, script, contents):
+        if isinstance(script, str):
+            script = shlex.split(script)
+        if not script and not contents:
+            raise ValueError("Either script or contents is required")
 
         script_name = "/.bert-build.script"
 
@@ -42,7 +39,6 @@ class TaskScript(Task, name="script"):
                 'file_sha256' : content_hash
             }, script_info, io.BytesIO(contents_bytes), script_name, [])
         else:
-            script = [job.template(a) for a in script]
             command = [posixpath.join(job.work_dir, script[0])]+script[1:]
 
             script_info = tarfile.TarInfo(name=script_name)

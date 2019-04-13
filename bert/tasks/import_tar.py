@@ -2,7 +2,7 @@
 import os
 import tarfile
 
-from . import Task
+from . import Task, TaskVar
 from ..utils import file_hash
 
 class TaskImportTar(Task, name="import-tar"):
@@ -10,24 +10,20 @@ class TaskImportTar(Task, name="import-tar"):
     Import files from a tar archive file into the image.
     """
 
-    def run(self, job):
-        if isinstance(self.value, str):
-            value = {'src' : value}
-        else:
-            value = self.value
+    class Schema:
+        dest = TaskVar()
+        src = TaskVar('path', bare=True)
 
-        dest = job.template(self.value.get('dest', job.work_dir))
-        try:
-            path = job.template(self.value['src'])
-        except KeyError:
-            path = job.template(self.value['path'])
+    def run_with_values(self, job, *, src, dest):
+        if dest is None:
+            dest = job.work_dir
 
         container = job.create({
-            'file_sha256' : file_hash('sha256', path),
+            'file_sha256' : file_hash('sha256', src),
             'dest' : dest
         })
 
-        with open(path, "rb") as f:
+        with open(src, "rb") as f:
             container.put_archive(
                 path=dest,
                 data=f

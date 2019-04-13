@@ -22,7 +22,7 @@ try:
 except ImportError:
     lzma = None
 
-from . import Task
+from . import Task, TaskVar
 from ..utils import IOFromIterable, open_output
 
 # This is derived from arch_canon entries in rpmrc
@@ -277,18 +277,12 @@ class RPMDep(object):
         self.flags = flags
 
 class RPMBuild(object):
-    def __init__(self, job, value):
-        self.name = job.template(value["name"])
-        self.epoch = job.template(value.get("epoch", None))
-        self.version = job.template(value.get("version", "0.0"))
-        self.release = job.template(value.get("release", "0"))
-        self.arch = job.template(value.get("arch", "noarch"))
-        self.rpm_os = job.template(value.get("os", "Linux"))
-        self.url = job.template(value.get("url"))
-        self.summary = job.template(value.get("summary"))
-        self.description = job.template(value.get("description"))
-        self.header = {k.lower(): v for k,v in job.template(value.get("header", {})).items()}
-        self.compress_type = job.template(value.get("compress-type", "bzip2"))
+    def __init__(self, job, *, dest, dest_dir, provides, requires, conflicts, obsoletes, header, **params):
+        self.__dict__.update(params)
+
+        if not header:
+            header = {}
+        self.header = header
 
         self.provides = []
         self.requires = [
@@ -320,10 +314,10 @@ class RPMBuild(object):
         else:
             raise RuntimeError("Unknown compressor")
 
-        self._append_deps(self.provides, job.template(value.get("provides", None)))
-        self._append_deps(self.requires, job.template(value.get("requires", None)))
-        self._append_deps(self.conflicts, job.template(value.get("conflicts", None)))
-        self._append_deps(self.obsoletes, job.template(value.get("obsoletes", None)))
+        self._append_deps(self.provides, provides)
+        self._append_deps(self.requires, requires)
+        self._append_deps(self.conflicts, conflicts)
+        self._append_deps(self.obsoletes, obsoletes)
 
         has_vers_provide_or_obsolete = any(i.version is not None for i in chain(self.provides, self.obsoletes))
         has_vers_prereq = any(i.version is not None and (i.flags & RPMSense.PreReq) for i in chain(self.requires, self.conflicts))
@@ -335,30 +329,15 @@ class RPMBuild(object):
         else:
             self.name_full = "{0.name}-{0.version}-{0.release}".format(self)
 
-        try:
-            dest = job.template(value["dest"])
-        except KeyError:
-            dest = None
-
-        dest_dir = "."
         if dest:
             if dest.endswith("/") or os.path.isdir(dest):
                 dest_dir = dest
                 dest = None
 
-        if "dest-dir" in value:
-            dest_dir = job.template(value["dest-dir"])
-
         if dest is None:
             self.dest = os.path.join(dest_dir, "{}.{}.rpm".format(self.name_full, self.arch))
         else:
             self.dest = dest
-
-        # allow either
-        self.paths = value.get('paths', [])
-        install_path = value.get('install-path')
-        if install_path:
-            self.paths.append(paths)
 
         if not self.paths:
             raise RuntimeError("Need a path")
@@ -593,8 +572,28 @@ class TaskExportRpm(Task, name="export-rpm"):
     Export files to a rpm package.
     """
 
-    def run(self, job):
-        build = RPMBuild(job, self.value)
+    class Schema:
+        name = TaskVar(required=True)
+        epoch = TaskVar()
+        version = TaskVar(default="0.0")
+        release = TaskVar(default="0")
+        arch = TaskVar(default="noarch")
+        rpm_os = TaskVar(default="Linux")
+        url = TaskVar()
+        summary = TaskVar()
+        description = TaskVar()
+        provides = TaskVar()
+        requires = TaskVar()
+        conflicts = TaskVar()
+        obsoletes = TaskVar()
+        header = TaskVar(type=dict)
+        compress_type = TaskVar(default="bzip2")
+        dest = TaskVar()
+        dest_dir = TaskVar(".")
+        paths = TaskVar()
+
+    def run_with_values(self, job, **params):
+        build = RPMBuild(job, **params)
 
         if os.path.exists(build.dest) and not job.changes:
             return

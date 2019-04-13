@@ -1,19 +1,20 @@
 
 import subprocess
 
-from . import Task
+from . import Task, TaskVar
 
 class TaskRun(Task, name="run"):
     """
     Run a command in the container image.
     """
 
-    def run(self, job):
-        cmd = job.template(self.value)
+    class Schema:
+        command = TaskVar(bare=True)
 
+    def run_with_values(self, job, *, command):
         job.create({
-            'value' : cmd
-        }, command=cmd)
+            'value' : command
+        }, command=command)
 
         job.commit()
 
@@ -22,5 +23,8 @@ class TaskLocalRun(Task, name="local-run"):
     Run a command locally.
     """
 
-    def run(self, job):
-        subprocess.check_call(self.value, shell=True)
+    class Schema:
+        command = TaskVar(bare=True)
+
+    def run_with_values(self, job, *, command):
+        subprocess.check_call(command, shell=True)

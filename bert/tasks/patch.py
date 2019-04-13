@@ -8,7 +8,7 @@ import tempfile
 
 import whatthepatch
 
-from . import Task
+from . import Task, TaskVar
 from ..utils import file_hash, IOFromIterable
 
 class PatchError(Exception):
@@ -230,22 +230,16 @@ class ContainerPatcher(object):
             )
 
 class TaskPatch(Task, name="patch"):
-    def run(self, job):
-        value = job.template(self.value)
+    class Schema:
+        src = TaskVar('file', bare=True)
+        chdir = TaskVar(default='/')
+        strip_dir = TaskVar(default=0)
 
-        chdir = "/"
-        strip_dir = 0
-        if isinstance(value, str):
-            patch_file = value
+    def run_with_values(self, job):
+        if os.path.isdir(src):
+            patch_files = [os.path.join(src, fn) for fn in sorted(os.listdir(src))]
         else:
-            patch_file = value.get("src", value.get("file"))
-            chdir = value.get("chdir", chdir)
-            strip_dir = value.get("strip-dir", strip_dir)
-
-        if os.path.isdir(patch_file):
-            patch_files = [os.path.join(patch_file, fn) for fn in sorted(os.listdir(patch_file))]
-        else:
-            patch_files = [patch_file]
+            patch_files = [src]
 
         container = job.create({
             'patches' : [file_hash('sha256', fn) for fn in patch_files]
