@@ -2,7 +2,7 @@ stages:
     - test
     - mirror
     - package
-#    - upload
+    - publish
 
 variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
@@ -63,9 +63,15 @@ package-docs:
             - dist/
         expire_in: 1 year
 
+publish-docs:
+    image: docker.git.cornhooves.org/build-tools/aws:latest
+    stage: publish
+    script:
+        - ./ci/publish-docs-s3.py --bucket bert-build-docs
+
 #upload:
-#    image: docker.git.cornhooves.org/docker-apps/python-pkg-tools:latest
-#    stage: upload
+#    image: docker.git.cornhooves.org/build-tools/python-pkg-tools:latest
+#    stage: publish
 #    script:
 #        - gpg-load-key
 #        - twine upload -s "$GPG_SIGNING_KEY_ID" dist/*

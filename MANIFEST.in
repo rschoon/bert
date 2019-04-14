@@ -1,6 +1,7 @@
 include LICENSE
 include tox.ini
 recursive-include ci *.sh
+recursive-include ci *.py
 recursive-include tests *.py
 recursive-include tests/tasks/patch-data *.diff
 recursive-include tests/tasks/patch-data *.txt
