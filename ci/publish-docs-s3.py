@@ -107,6 +107,7 @@ def main():
             print("Upload: %s"%name)
             s3.upload_fileobj(tdata, args.bucket, name, {
                 'ContentType' : get_mimetype(name),
+                'CacheControl' : "max-age=86400",
                 'Metadata' : {
                     'sha256' : sha256
                 }
