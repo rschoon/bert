@@ -68,6 +68,9 @@ publish-docs:
     stage: publish
     script:
         - ./ci/publish-docs-s3.py --bucket bert-build-docs
+    only:
+        - master
+        - tags
 
 #upload:
 #    image: docker.git.cornhooves.org/build-tools/python-pkg-tools:latest

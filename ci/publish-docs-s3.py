@@ -97,7 +97,7 @@ def main():
             sha256 = hash_fileobj(tdata, 'sha256')
             if has_item_already:
                 metadata = s3_metadata(s3, args.bucket, name)
-                sha256_previous = metadata.get('x-amz-meta-sha256')
+                sha256_previous = metadata.get('sha256')
                 if sha256 == sha256_previous:
                     print("Skip: %s"%name)
                     continue
@@ -108,7 +108,7 @@ def main():
             s3.upload_fileobj(tdata, args.bucket, name, {
                 'ContentType' : get_mimetype(name),
                 'Metadata' : {
-                    'x-amz-meta-sha256' : sha256
+                    'sha256' : sha256
                 }
             })
 
