@@ -15,7 +15,7 @@ def is_valid_doc_version(v):
         return False
     if v == "latest":
         return True
-    return re.search(r'^\d+$', v) is not None
+    return re.search(r'^\d+\.\d+$', v) is not None
 
 def get_mimetype(filename):
     filename = posixpath.basename(filename)
@@ -68,9 +68,10 @@ def main():
         # Infer tag from CI environment
         tag = os.environ.get("CI_COMMIT_TAG", "latest")
 
-    version_major = tag
     if "." in tag:
-        version_major = version_major[:tag.find(".")]
+        version_major = ".".join(tag.split(".")[:2])
+    else:
+        version_major = tag
     
     if not is_valid_doc_version(version_major):
         print("Invalid version to publish as!  Expect single number or 'latest'")
