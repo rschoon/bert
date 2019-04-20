@@ -111,6 +111,8 @@ class TaskSchema(object):
         self.values[_fixup_var_name(key)] = var
         for alias in var.aliases:
             self.aliases[alias] = var
+        if var.extra:
+            self.extra = var
 
     def task_apply_values(self, job, value):
         vals = {}
