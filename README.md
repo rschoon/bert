@@ -13,7 +13,7 @@ Known Limitations
   parity with `docker build`).
 * The docker commit process while creating an image can timeout, but resuming
   the run after the commit actually commits will work.
-* Bert doesn't integrate very will into CI servers yet.
+* Bert doesn't integrate very well into CI servers yet.
 * Needs tests and examples.
 
 Installing
