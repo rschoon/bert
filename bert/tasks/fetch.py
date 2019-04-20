@@ -1,6 +1,7 @@
 
 import hashlib
 import io
+import json
 import os
 import requests
 import tempfile
@@ -21,7 +22,8 @@ class TaskFetch(Task, name="fetch"):
         json = TaskVar(default=False)
         dest = TaskVar()
 
-    def run_with_values(self, job, url, params, method, dest_var, json, dest):
+    def run_with_values(self, job, url, params, method, dest_var, dest, **kwargs):
+        is_json = kwargs.get("json")
         if method == "GET":
             call_req = requests.get
         elif method == "POST":
