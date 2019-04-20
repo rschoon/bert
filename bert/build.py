@@ -149,6 +149,7 @@ class BuildJob(object):
         self.current_task = None
         self._all_containers = []
         self._extra_images = []
+        self.from_image_cache = stage.from_image_cache
         if vars is not None:
             self.saved_vars = vars
         else:
@@ -159,7 +160,9 @@ class BuildJob(object):
         self.src_image = image
 
         click.echo(">>> Pulling: {}".format(self.src_image))
-        img = self.docker_client.images.pull(self.src_image)
+        img = self.from_image_cache.get(self.src_image)
+        if img is None:
+            img = self.from_image_cache[self.src_image] = self.docker_client.images.pull(self.src_image)
 
         if self.work_dir is None:
             wd = img.attrs["Config"].get("WorkingDir")
@@ -434,6 +437,7 @@ class BertStage(BertScope):
         except KeyError:
             self.from_ = None
         self.tasks = list(self._iter_parse_tasks(data.pop("tasks")))
+        self.from_image_cache = parent.from_image_cache
 
         self.load_global_vars(data)
 
@@ -485,6 +489,7 @@ class BertBuild(BertScope):
         self.shell_fail = shell_fail
         self.configs = []
         self.stages = []
+        self.from_image_cache = {}
         self._parse()
 
     def __repr__(self):
