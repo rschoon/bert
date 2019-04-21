@@ -4,20 +4,51 @@ from datetime import datetime
 
 import yaml
 
-__all__ = ['from_yaml', 'YamlType']
+__all__ = ['from_yaml', 'YamlType', 'preserve_yaml_type', 'get_yaml_type_name']
 
 #
 #
 #
+
+YAML_TYPE_MAP = {}
 
 class YamlType(object):
+    TYPE_NAME = "UNKNOWN"
+
+    @classmethod
+    def __init_subclass__(cls, **kwargs):
+        type_name = kwargs.pop('type_name', None)
+        base_type = kwargs.pop('base_type', None)
+        if base_type is None:
+            for i, klass in enumerate(reversed(cls.mro())):
+                if i == 1 and klass is not YamlType:
+                    base_type = klass
+                    break
+
+        super().__init_subclass__(**kwargs)
+
+        auto_type_name = None
+        if base_type is not None:
+            if isinstance(base_type, tuple):
+                auto_type_name = base_type[0].__name__
+                for b in base_type:
+                    YAML_TYPE_MAP[b] = cls
+            else:
+                YAML_TYPE_MAP[base_type] = cls
+                auto_type_name = base_type.__name__
+
+        if type_name is not None:
+            cls.TYPE_NAME = type_name
+        elif auto_type_name is not None:
+            cls.TYPE_NAME = auto_type_name
+
     @property
     def filename(self):
         return self.yaml_mark.name
 
     @property
     def line(self):
-        return self.yaml_mark.line
+        return self.yaml_mark.line + 1
 
     @property
     def column(self):
@@ -31,37 +62,43 @@ class YamlImmutable(YamlType):
                 continue
             return o(val)
 
-    def __new__(cls, val, loader=None, node=None):
+    def __new__(cls, val, loader=None, node=None, mark=None):
         o = super().__new__(cls, cls._raw_init(val))
-        o.yaml_mark = node.start_mark
+        if mark is not None:
+            o.yaml_mark = mark
+        else:
+            o.yaml_mark = node.start_mark
         return o
 
 class YamlMutable(YamlType):
-    def __init__(self, val, loader=None, node=None):
+    def __init__(self, val, loader=None, node=None, mark=None):
         super().__init__(val)
-        self.yaml_mark = node.start_mark
+        if mark is not None:
+            self.yaml_mark = mark
+        else:
+            self.yaml_mark = node.start_mark
 
-class YamlInt(YamlImmutable, int):
+class YamlInt(YamlImmutable, int, type_name='integer'):
     pass
 
 class YamlFloat(YamlImmutable, float):
     pass
 
-class YamlStr(YamlImmutable, str):
+class YamlStr(YamlImmutable, str, type_name='string'):
     pass
 
 class YamlBytes(YamlImmutable, bytes):
     pass
 
-class YamlBool(YamlImmutable, int):
+class YamlBool(YamlImmutable, int, base_type=bool, type_name='boolean'):
     @classmethod
     def _raw_init(cls, val):
         return bool(val)
 
-class YamlDict(YamlMutable, OrderedDict):
+class YamlDict(YamlMutable, OrderedDict, base_type=(dict, OrderedDict), type_name='mapping'):
     pass
 
-class YamlDateTime(YamlMutable, datetime):
+class YamlDateTime(YamlMutable, datetime, base_type=datetime):
     pass
 
 class YamlSet(YamlMutable, set):
@@ -131,3 +168,14 @@ def _construct_yaml_seq(loader, node):
 
 def from_yaml(obj):
     return yaml.load(obj, YamlLoader)
+
+def get_yaml_type_name(obj):
+    if isinstance(obj, YamlType):
+        return obj.TYPE_NAME
+    return type(obj).__name__
+
+def preserve_yaml_mark(dst, src):
+    if isinstance(src, YamlType):
+        ycls = YAML_TYPE_MAP[type(dst)]
+        return ycls(dst, mark=src.yaml_mark)
+    return dst

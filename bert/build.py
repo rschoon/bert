@@ -9,8 +9,8 @@ import os
 
 from .tasks import get_task
 from .utils import json_hash
-from .yaml import from_yaml
-from .exc import BuildFailed
+from .yaml import from_yaml, preserve_yaml_mark, get_yaml_type_name
+from .exc import BuildFailed, ConfigFailed
 
 LABEL_BUILD_ID = "bert.build_id"
 
@@ -25,14 +25,14 @@ class BuildImageExists(Exception):
 def expect_type(val, type_):
     if type_ is None:
         return val
-    return type_(val)
+    return preserve_yaml_mark(type_(val), val)
 
 def expect_list(val, subtype=None):
     if isinstance(val, list):
-        return [expect_type(v, subtype) for v in val]
+        return preserve_yaml_mark([expect_type(v, subtype) for v in val], val)
     if subtype is not None and isinstance(val, subtype):
-        return [val]
-    raise ValueError("Invalid value type")
+        return preserve_yaml_mark([val], val)
+    raise ConfigError("Invalid value type", element=val)
 
 def expect_list_or_none(val, subtype=None):
     if val is None:
@@ -70,9 +70,12 @@ class BertTask(object):
         when = taskinfo.pop("when", None)
 
         if taskinfo:
-            raise ValueError("Unexpected attributes %r"%", ".join(taskinfo.values()))
+            raise ConfigFailed("Unexpected attributes %r"%", ".join(taskinfo.values()), element=taskinfo)
 
-        return cls(action, name=name, value=value, env=env, when=when)
+        try:
+            return cls(action, name=name, value=value, env=env, when=when)
+        except ValueError as exc:
+            raise ConfigFailed(str(exc), element=taskinfo)
 
     @property
     def task_name(self):
@@ -396,6 +399,12 @@ class BertConfig(BertScope):
     def __init__(self, data):
         super().__init__(None)
 
+        if not isinstance(data, dict):
+            raise ConfigFailed(
+                "Expect config definition to be a mapping, but got {}".format(get_yaml_type_name(data)),
+                element=data
+            )
+
         self.load_global_vars(data)
 
         self.name = data.pop('name')
@@ -429,6 +438,12 @@ class BertStage(BertScope):
     def __init__(self, parent, data, name=None):
         super().__init__(parent)
 
+        if not isinstance(data, dict):
+            raise ConfigFailed(
+                "Expect stage definition to be a mapping, but got {}".format(get_yaml_type_name(data)),
+                element=data
+            )
+
         self.name = name
         self.build_tag = data.pop("build-tag", None)
         self.work_dir = data.pop("work-dir", None)
@@ -436,7 +451,13 @@ class BertStage(BertScope):
             self.from_ = expect_list(data.pop("from"), str)
         except KeyError:
             self.from_ = None
-        self.tasks = list(self._iter_parse_tasks(data.pop("tasks")))
+
+        try:
+            task_list = data.pop("tasks")
+        except KeyError:
+            raise ConfigFailed("Missing required task list", element=data)
+
+        self.tasks = list(self._iter_parse_tasks(task_list))
         self.from_image_cache = parent.from_image_cache
 
         self.load_global_vars(data)
@@ -499,9 +520,29 @@ class BertBuild(BertScope):
         with open(self.filename, "r") as f:
             config = from_yaml(f)
 
+        if not isinstance(config, dict):
+            raise ConfigFailed(
+                "Unexpected type at top level, got {}, expected a mapping".format(get_yaml_type_name(config)),
+                element=config
+            )
+
         self.load_global_vars(config)
 
-        if 'tasks' in config:
+        tasks = config.pop('tasks', None)
+        stages = config.pop('stages', None)
+
+        if tasks and stages:
+            raise ConfigFailed(
+                "Got both stages and tasks at top level, but only expected either.",
+                element=tasks
+            )
+        elif tasks is None and stages is None:
+            raise ConfigFailed(
+                "Need one of tasks or stages at top level",
+                element=config
+            )
+
+        if tasks:
             self.configs.append(BertConfig({
                 'name' : 'default'
             }))
@@ -517,11 +558,16 @@ class BertBuild(BertScope):
                     except KeyError:
                         pass
 
+            if not isinstance(configs, dict):
+                raise ConfigFailed(
+                    "Expect configs to be a list, but got {}".format(get_yaml_type_name(configs)),
+                    element=configs
+                )
+
             for confdata in configs:
                 conf = BertConfig(confdata)
                 self.configs.append(conf)
 
-            stages = config.pop("stages")
             for stage_name, stage in stages.items():
                 stage = BertStage(self, stage, name=stage_name)
                 self.stages.append(stage)

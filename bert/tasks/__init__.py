@@ -127,7 +127,7 @@ class TaskSchema(object):
                     varobj.handle(vals, job, v)
                 else:
                     if self.extra is None:
-                        raise ValueError("Unknown item `%s' found"%k)
+                        raise ConfigFailed("Unknown item `%s' found"%k, element=value)
                     else:
                         if extras is None:
                             extras = {}
@@ -137,13 +137,13 @@ class TaskSchema(object):
                 self.extra.handle(vals, job, extras)
         else:
             if self.bare is None:
-                raise ValueError("Non-mapping provided but map is required")
+                raise ConfigFailed("Non-mapping provided but map is required", element=value)
             self.bare.handle(vals, job, value)
 
         for name, item in self.values.items():
             if item.name not in vals:
                 if item.required:
-                    raise ValueError("Missing required %s"%name)
+                    raise ConfigFailed("Missing required %s"%name, element=value)
                 vals[item.name] = item.default
 
         return vals

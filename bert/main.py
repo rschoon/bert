@@ -22,9 +22,12 @@ def cli(input, shell_fail):
         except FileNotFoundError as fef:
             click.echo(str(fef), err=True)
             sys.exit(1)
+        except BuildFailed as bf:
+            click.echo(str(bf), err=True)
+            sys.exit(1)
 
         try:
             build.build()
         except BuildFailed as bf:
-            click.echo("Failed({})".format(bf), err=True)
+            click.echo(str(bf), err=True)
             sys.exit(1)
