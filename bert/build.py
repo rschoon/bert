@@ -43,6 +43,33 @@ def expect_list_or_none(val, subtype=None):
 #
 #
 
+def _chain_configs(root):
+    configs = root.configs
+    if not configs:
+        yield None,
+        return
+    for config in configs:
+        for c in _chain_configs(config):
+            yield (config, *c)
+
+def chain_configs(root):
+    for c in _chain_configs(root):
+        yield c[:-1]
+
+def build_stages(configs, stages, shell_fail=False):
+    saved_vars = {}
+    for stage in stages:
+        try:
+            job = stage.build(configs, vars=saved_vars)
+        except BuildFailed as bf:
+            if shell_fail and bf.job is not None and bf.rc != 0:
+                click.echo("Job failed, dropping into shell", err=True)
+                bf.job.resurrect_shell()
+            raise
+
+        saved_vars = job.saved_vars
+        job.close()
+
 class BuildVars(dict):
     def __init__(self, job=None):
         super().__init__(env=os.environ)
@@ -137,14 +164,14 @@ class CurrentTask(object):
         return config.get("Cmd")
 
 class BuildJob(object):
-    def __init__(self, stage, config, vars=None, work_dir=None):
+    def __init__(self, stage, configs, vars=None, work_dir=None):
         # XXX timeout is problematic
         self.docker_client = docker.from_env(timeout=600)
 
         self.tpl_env = jinja2.Environment(undefined=jinja2.StrictUndefined)
 
         self.stage = stage
-        self.config = config
+        self.configs = configs
         self.changes = []
         self.work_dir = work_dir
         self.cache_dir = "cache"
@@ -346,7 +373,8 @@ class BuildJob(object):
         self.vars[name] = self.saved_vars[name] = value
 
     def put_vars(self, data):
-        self.config.put_vars(data)
+        for conf in self.configs:
+            conf.put_vars(data)
         if self.stage:
             self.stage.put_vars(data)
         data.update(self.saved_vars)
@@ -396,8 +424,8 @@ class BertScope(object):
         data.update(self.global_vars)
 
 class BertConfig(BertScope):
-    def __init__(self, data):
-        super().__init__(None)
+    def __init__(self, data, parent=None):
+        super().__init__(parent)
 
         if not isinstance(data, dict):
             raise ConfigFailed(
@@ -405,33 +433,45 @@ class BertConfig(BertScope):
                 element=data
             )
 
+        data = dict(data)
         self.load_global_vars(data)
 
-        self.name = data.pop('name')
+        try:
+            self.name = data.pop('name')
+        except KeyError:
+            raise ConfigFailed(
+                "Config is missing required field name",
+                element=data
+            )
+
         try:
             self.images = expect_list(data.pop("from"), str)
         except KeyError:
             self.images = None
 
-    def build_stages(self, stages, shell_fail=False):
-        saved_vars = {}
-        for stage in stages:
-            try:
-                job = stage.build(self, vars=saved_vars)
-            except BuildFailed as bf:
-                if shell_fail and bf.job is not None and bf.rc != 0:
-                    click.echo("Job failed, dropping into shell", err=True)
-                    bf.job.resurrect_shell()
-                raise
+        subconfigs = data.pop("configs", ())
+        if subconfigs:
+            self.configs = self.create_from_list(subconfigs)
+        else:
+            self.configs = None
 
-            saved_vars = job.saved_vars
-            job.close()
+    @classmethod
+    def create_from_list(cls, configs):
+        if not isinstance(configs, list):
+            raise ConfigFailed(
+                "Expect configs to be a list, but got {}".format(get_yaml_type_name(configs)),
+                element=configs
+            )
+
+        return [BertConfig(confdata) for confdata in configs]
 
     def put_vars(self, data):
-        data["config"] = {
-            'name' : self.name,
-            'images' : self.images
-        }
+        dv = data.get("config")
+        if dv is None:
+            dv = data["config"] = {"name": self.name}
+        else:
+            dv["name"] = "{}.{}".format(dv["name"], self.name)
+        dv['images'] = self.images
         super().put_vars(data)
 
 class BertStage(BertScope):
@@ -467,22 +507,28 @@ class BertStage(BertScope):
         for task in tasks:
             yield BertTask.create_from_dict(task)
 
-    def build(self, config, vars=None):
+    def build(self, configs, vars=None):
         vars = dict(vars) if vars else {}
 
         if self.from_:
             images = self.from_
         else:
-            images = config.images
+            images = ()
+            for config in reversed(configs):
+                if config.images:
+                    images = config.images
+                    break
 
-        job = BuildJob(self, config, vars=vars, work_dir=self.work_dir)
+        if not images:
+            raise ConfigFailed("Stage lacks images")
 
+        job = BuildJob(self, configs, vars=vars, work_dir=self.work_dir)
         for from_image in images:
-            self._build_from(job, config, from_image)
+            self._build_from(job, configs, from_image)
 
         return job
 
-    def _build_from(self, job, config, img):
+    def _build_from(self, job, configs, img):
         try:
             job.setup(img)
             for task in self.tasks:
@@ -558,20 +604,12 @@ class BertBuild(BertScope):
                     except KeyError:
                         pass
 
-            if not isinstance(configs, dict):
-                raise ConfigFailed(
-                    "Expect configs to be a list, but got {}".format(get_yaml_type_name(configs)),
-                    element=configs
-                )
-
-            for confdata in configs:
-                conf = BertConfig(confdata)
-                self.configs.append(conf)
+            self.configs = BertConfig.create_from_list(configs)
 
             for stage_name, stage in stages.items():
                 stage = BertStage(self, stage, name=stage_name)
                 self.stages.append(stage)
 
     def build(self):
-        for config in self.configs:
-            config.build_stages(self.stages, shell_fail=self.shell_fail)
+        for configs in chain_configs(self):
+            build_stages(configs, self.stages, shell_fail=self.shell_fail)
