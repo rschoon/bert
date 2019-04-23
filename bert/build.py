@@ -39,6 +39,9 @@ def expect_list_or_none(val, subtype=None):
         return val
     return expect_list(val, subtype=subtype)
 
+def copy_dict(val):
+    return preserve_yaml_mark(OrderedDict(val), val)
+
 #
 #
 #
@@ -86,6 +89,8 @@ class BertTask(object):
 
     @classmethod
     def create_from_dict(cls, taskinfo):
+        taskinfo = copy_dict(taskinfo)
+
         # this may be first instead of action
         name = taskinfo.pop("name", None)
 
@@ -433,7 +438,7 @@ class BertConfig(BertScope):
                 element=data
             )
 
-        data = dict(data)
+        data = copy_dict(data)
         self.load_global_vars(data)
 
         try:
@@ -483,6 +488,8 @@ class BertStage(BertScope):
                 "Expect stage definition to be a mapping, but got {}".format(get_yaml_type_name(data)),
                 element=data
             )
+
+        data = copy_dict(data)
 
         self.name = name
         self.build_tag = data.pop("build-tag", None)
