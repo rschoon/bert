@@ -421,7 +421,12 @@ class BertScope(object):
 
         svars = config.pop('vars', None)
         if svars:
-            self.global_vars.update(svars)
+            if isinstance(svars, dict):
+                self.global_vars.update(svars)
+            else:
+                raise ConfigFailed("Expected vars to be a mapping, but got {}".format(get_yaml_type_name(svars)),
+                    element=svars
+                )
 
     def put_vars(self, data):
         if self.parent_scope is not None:
