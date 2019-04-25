@@ -1,5 +1,6 @@
 include LICENSE
 include tox.ini
+exclude docs/_*.rst
 recursive-include ci *.sh
 recursive-include ci *.py
 recursive-include tests *.py
