@@ -10,7 +10,7 @@ import os
 from .tasks import get_task
 from .utils import json_hash
 from .yaml import from_yaml, preserve_yaml_mark, get_yaml_type_name
-from .exc import BuildFailed, ConfigFailed
+from .exc import BuildFailed, ConfigFailed, TemplateFailed
 
 LABEL_BUILD_ID = "bert.build_id"
 
@@ -371,8 +371,17 @@ class BuildJob(object):
         elif isinstance(txt, list):
             return [self.template(v) for v in txt]
 
-        tpl = self.tpl_env.from_string(txt)
-        return tpl.render(**self.vars)
+        try:
+            tpl = self.tpl_env.from_string(txt)
+        except jinja2.TemplateSyntaxError as tse:
+            raise TemplateFailed("Problem parsing template: {}".format(tse), element=txt, tse=tse)
+        except jinja2.TemplateError as te:
+            raise TemplateFailed("Problem parsing template: {}".format(te), element=txt)
+
+        try:
+            return tpl.render(**self.vars)
+        except jinja2.UndefinedError as ue:
+            raise TemplateFailed("Problem rendering template: {}".format(ue), element=txt)
 
     def set_var(self, name, value):
         self.vars[name] = self.saved_vars[name] = value

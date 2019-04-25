@@ -41,3 +41,16 @@ class ConfigFailed(BuildFailed):
         else:
             fmt = "{0.msg}"
         return fmt.format(self)
+
+class TemplateFailed(ConfigFailed):
+    def __init__(self, msg=None, job=None, element=None, tse=None):
+        super().__init__(msg=msg, job=job, element=element)
+
+        if tse is not None:
+            if tse.filename is not None:
+                self.filename = tse.filename
+                self.line = tse.lineno
+            else:
+                if self.line is not None and tse.lineno is not None:
+                    self.line += tse.lineno
+            self.column = None
