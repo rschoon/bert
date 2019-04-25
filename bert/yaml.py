@@ -4,7 +4,9 @@ from datetime import datetime
 
 import yaml
 
-__all__ = ['from_yaml', 'YamlType', 'preserve_yaml_type', 'get_yaml_type_name']
+from . import exc
+
+__all__ = ['from_yaml', 'YamlMarked', 'preserve_yaml_type', 'get_yaml_type_name']
 
 #
 #
@@ -12,7 +14,24 @@ __all__ = ['from_yaml', 'YamlType', 'preserve_yaml_type', 'get_yaml_type_name']
 
 YAML_TYPE_MAP = {}
 
-class YamlType(object):
+class YamlMarked(object):
+    @property
+    def filename(self):
+        return self.yaml_mark.name
+
+    @property
+    def line(self):
+        return self.yaml_mark.line + 1
+
+    @property
+    def column(self):
+        return self.yaml_mark.column
+
+class YamlVoid(YamlMarked):
+    def __init__(self, mark=None):
+        self.yaml_mark = mark
+
+class YamlType(YamlMarked):
     TYPE_NAME = "UNKNOWN"
 
     @classmethod
@@ -41,18 +60,6 @@ class YamlType(object):
             cls.TYPE_NAME = type_name
         elif auto_type_name is not None:
             cls.TYPE_NAME = auto_type_name
-
-    @property
-    def filename(self):
-        return self.yaml_mark.name
-
-    @property
-    def line(self):
-        return self.yaml_mark.line + 1
-
-    @property
-    def column(self):
-        return self.yaml_mark.column
 
 class YamlImmutable(YamlType):
     @classmethod
@@ -167,7 +174,13 @@ def _construct_yaml_seq(loader, node):
 #
 
 def from_yaml(obj):
-    return yaml.load(obj, YamlLoader)
+    try:
+        return yaml.load(obj, YamlLoader)
+    except yaml.YAMLError as ye:
+        if hasattr(ye, "problem_mark"):
+            raise exc.ConfigFailed(ye.problem, element=YamlVoid(ye.problem_mark))
+        else:
+            raise exc.ConfigFailed(str(ye))
 
 def get_yaml_type_name(obj):
     if isinstance(obj, YamlType):

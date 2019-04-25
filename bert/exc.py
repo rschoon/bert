@@ -1,5 +1,5 @@
 
-from .yaml import YamlType
+from .yaml import YamlMarked
 
 class BuildFailed(Exception):
     def __init__(self, msg=None, rc=0, job=None):
@@ -24,7 +24,7 @@ class ConfigFailed(BuildFailed):
         self.line = None
         self.column = None
 
-        if element is not None and isinstance(element, YamlType):
+        if element is not None and isinstance(element, YamlMarked):
             self.filename = element.filename
             self.line = element.line
             self.column = element.column
