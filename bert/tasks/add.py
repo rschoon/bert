@@ -12,7 +12,7 @@ class TaskAdd(Task, name="add"):
     """
 
     class Schema:
-        path = TaskVar(bare=True)
+        path = TaskVar(bare=True, help="Path to local file to add")
 
     def run_with_values(self, job, path):
         container = job.create({

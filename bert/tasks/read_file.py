@@ -10,8 +10,8 @@ class TaskReadFile(Task, name="read-file"):
     """
 
     class Schema:
-        path = TaskVar()
-        var = TaskVar()
+        path = TaskVar(help="Container file path to read data from")
+        var = TaskVar(help="Destination variable name to write file contents to")
 
     def run_with_values(self, job, *, var, path):
         container = job.create({})

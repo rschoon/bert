@@ -150,13 +150,14 @@ class TaskSchema(object):
 
 class TaskVar(object):
     name = None
-    def __init__(self, *aliases, bare=False, extra=False, default=None, type=None, required=False):
+    def __init__(self, *aliases, bare=False, extra=False, default=None, type=None, required=False, help=None):
         self.bare = bare
         self.aliases = aliases
         self.extra = extra
         self.default = default
         self.type = type
         self.required = required
+        self.help = help
 
     def handle(self, vals, job, value):
         value = job.template(value)

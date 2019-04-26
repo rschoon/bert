@@ -22,7 +22,10 @@ def task_schema_doc(task, schema):
                 default = "no"
             else:
                 default = str(default)
-            table.append((name, default, ""))
+            varhelp = varobj.help
+            if varhelp is None:
+                varhelp = ""
+            table.append((name, default, varhelp))
         widths = [max(len(r[i]) for r in table) for i in range(len(table[0]))]
         tr = "  ".join("="*w for w in widths)
 

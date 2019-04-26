@@ -3,7 +3,7 @@ from . import Task
 
 class TaskSetVar(Task, name="set-var"):
     """
-    Set a variable.
+    Set a variable, specified as a mapping of key/value pairs.
     """
 
     def run(self, job):

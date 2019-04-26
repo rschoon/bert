@@ -99,12 +99,14 @@ class GitRun(object):
 class TaskGit(Task, name="git"):
     """
     Add a git checkout to container image.
+
+    Before being added to the image, the git repo contents will be locally cached.
     """
 
     class Schema:
-        repo = TaskVar()
-        dest = TaskVar('path')
-        ref = TaskVar(default="master")
+        repo = TaskVar(help="Git repository URL")
+        dest = TaskVar('path', help="Destination in container image")
+        ref = TaskVar(default="master", help="Branch, tag or commit to checkout at")
 
     def run_with_values(self, job, **kwargs):
         gr = GitRun(job, **kwargs)

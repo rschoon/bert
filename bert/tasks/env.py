@@ -4,6 +4,8 @@ from . import Task, TaskVar
 class TaskEnv(Task, name="env"):
     """
     Set container environment.
+
+    The environment variables are specified as the key/values.
     """
 
     schema_doc = False

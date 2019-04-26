@@ -9,7 +9,7 @@ class TaskRun(Task, name="run"):
     """
 
     class Schema:
-        command = TaskVar(bare=True)
+        command = TaskVar(bare=True, help="Command to run")
 
     def run_with_values(self, job, *, command):
         job.create({
@@ -24,7 +24,7 @@ class TaskLocalRun(Task, name="local-run"):
     """
 
     class Schema:
-        command = TaskVar(bare=True)
+        command = TaskVar(bare=True, help="Command to run")
 
     def run_with_values(self, job, *, command):
         subprocess.check_call(command, shell=True)

@@ -15,8 +15,8 @@ class TaskScript(Task, name="script"):
     """
 
     class Schema:
-        script = TaskVar(bare=True)
-        contents = TaskVar()
+        script = TaskVar(bare=True, help="Script to push to container and run")
+        contents = TaskVar(help="Script contents to push to container and run")
 
     def run_with_values(self, job, *, script, contents):
         if isinstance(script, str):

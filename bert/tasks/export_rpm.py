@@ -573,24 +573,27 @@ class TaskExportRpm(Task, name="export-rpm"):
     """
 
     class Schema:
-        name = TaskVar(required=True)
-        epoch = TaskVar()
-        version = TaskVar(default="0.0")
-        release = TaskVar(default="0")
-        arch = TaskVar(default="noarch")
-        rpm_os = TaskVar(default="Linux")
-        url = TaskVar()
-        summary = TaskVar()
-        description = TaskVar()
-        provides = TaskVar()
-        requires = TaskVar()
-        conflicts = TaskVar()
-        obsoletes = TaskVar()
-        header = TaskVar(type=dict)
-        compress_type = TaskVar(default="bzip2")
-        dest = TaskVar()
-        dest_dir = TaskVar(".")
-        paths = TaskVar()
+        name = TaskVar(required=True, help="RPM package name")
+        epoch = TaskVar(help="Epoch version, which is more significant than version or release")
+        version = TaskVar(default="0.0", help="RPM version which is more sigificant than release, which intended to track upstream version.")
+        release = TaskVar(default="0", help="RPM release number")
+        arch = TaskVar(default="noarch", help="Architecture for package (example: noarch, x86_64)")
+        rpm_os = TaskVar(default="Linux", help="Target operating system")
+        url = TaskVar(help='Full url for more information about the package')
+        summary = TaskVar(help='A brief summary about the package')
+        description = TaskVar(help='A longer description about the package')
+        provides = TaskVar(help='A list of capabilities the package provides')
+        requires = TaskVar(help='A list of runtime dependencies for the package')
+        conflicts = TaskVar(help='A list of packages this package will conflict with')
+        obsoletes = TaskVar(help='A list of packages this package obsoletes')
+        header = TaskVar(type=dict, help='Additional rpm fields to provide manually')
+        compress_type = TaskVar(default="bzip2", help='The compression to use for the package contents')
+        dest = TaskVar(help="The destination file name to use for the package.  If not provided "
+                       "it will be automatically be determined from the `dest_dir` and version values.")
+        dest_dir = TaskVar(default=".",
+                           help="The destination directory to put the package if dest "
+                           "is not explicitly provided")
+        paths = TaskVar(help="List of paths to include in package")
 
     def run_with_values(self, job, **params):
         build = RPMBuild(job, **params)

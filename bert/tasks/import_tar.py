@@ -11,8 +11,8 @@ class TaskImportTar(Task, name="import-tar"):
     """
 
     class Schema:
-        dest = TaskVar()
-        src = TaskVar('path', bare=True)
+        dest = TaskVar(help="Destination path in image to unpack tar file to.")
+        src = TaskVar('path', bare=True, help="Local source path of tar file")
 
     def run_with_values(self, job, *, src, dest):
         if dest is None:

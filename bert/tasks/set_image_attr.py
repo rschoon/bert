@@ -7,8 +7,9 @@ class TaskEnv(Task, name="set-image-attr"):
     """
 
     class Schema:
-        env = TaskVar()
-        work_dir = TaskVar()
+        env = TaskVar(help="Environment variables to set on container image, "
+                      "specified as a mapping of key/values.")
+        work_dir = TaskVar(help="Default working directory for commands")
 
     def run(self, job, *, env, work_dir):
         job_args = {}

@@ -15,12 +15,14 @@ class TaskFetch(Task, name="fetch"):
     """
 
     class Schema(object):
-        url = TaskVar()
-        params = TaskVar()
-        method = TaskVar(default="GET")
-        dest_var = TaskVar()
-        json = TaskVar(default=False)
-        dest = TaskVar()
+        url = TaskVar(help="Url to fetch data from.")
+        params = TaskVar(help="Key/values to pass as query string parameters")
+        method = TaskVar(default="GET", help="HTTP method to use")
+        dest_var = TaskVar(help="Destination variable to put output in")
+        json = TaskVar(default=False,
+                       help="If set, destination variable will "
+                       "be set with response converted from json")
+        dest = TaskVar(help="Destination file to put output in")
 
     def run_with_values(self, job, url, params, method, dest_var, dest, **kwargs):
         is_json = kwargs.get("json")

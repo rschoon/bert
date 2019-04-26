@@ -231,9 +231,9 @@ class ContainerPatcher(object):
 
 class TaskPatch(Task, name="patch"):
     class Schema:
-        src = TaskVar('file', bare=True)
-        chdir = TaskVar(default='/')
-        strip_dir = TaskVar(default=0)
+        src = TaskVar('file', bare=True, help="Patch file to apply")
+        chdir = TaskVar(default='/', help="Directory to apply patch from")
+        strip_dir = TaskVar(default=0, help="Strip directory prefixes from patched filenames" )
 
     def run_with_values(self, job):
         if os.path.isdir(src):

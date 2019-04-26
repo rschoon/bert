@@ -14,12 +14,18 @@ class TaskExportTar(Task, name="export-tar"):
     """
 
     class Schema:
-        dest = TaskVar()
-        preamble = TaskVar()
-        preamble_encoding = TaskVar(default="utf-8")
-        compress_type = TaskVar()
-        mode = TaskVar(type=expect_file_mode)
-        paths = TaskVar()
+        dest = TaskVar(help="The destination filename for the tar file")
+        preamble = TaskVar(help="If provided, the tar file will contain this before the "
+                           "actual tar contents.  This can be used to make a self extracting "
+                           "runnable.")
+        preamble_encoding = TaskVar(default="utf-8",
+                                    help="The encoding to write the preamble out as. "
+                                    "Used if preamble is not provided as YAML !!binary type.")
+        compress_type = TaskVar(help="The compression type to use for the tar file. "
+                                "If not specified, the compression type will be inferred from "
+                                "the destination file name.")
+        mode = TaskVar(type=expect_file_mode, help="The unix file mode to use for the tar file.")
+        paths = TaskVar(help="List of paths to include in tar file")
 
     def run_with_values(self, job, *, dest, preamble, preamble_encoding, compress_type, mode, paths):
         if os.path.exists(dest) and not job.changes:
