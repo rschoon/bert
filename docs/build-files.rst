@@ -131,6 +131,31 @@ Configs are provided at top level::
             tasks:
                 [...]
 
+A config can include a set of additional sub-configs, and builds are run
+from each leaf node in the config tree. By using anchors and the extend
+or reference operators, it is possible to create a config matrix::
+
+    # By prefixing with . the key will be ignored by bert
+    .python-configs: &python-configs
+        python3.6:
+            vars:
+                python_version: "3.6"
+        python3.7:
+            vars:
+                python_version: "3.7"
+
+    configs:
+        debian-stable:
+            from: debian:stable
+            configs: *python-configs
+        ubuntu-lts:
+            from: ubuntu:18.04
+            configs: *python-configs
+        centos-7:
+            from: centos:7
+            configs: *python-configs
+
+
 Config Schema
 .............
 
@@ -140,4 +165,5 @@ Config Schema
 from                Default image name to use for jobs
 include-vars        YAML file to include variables from for all jobs
 variables           Variables to set for all jobs
+configs             A mapping of sub-configs to use
 ==================  ==============================================================
