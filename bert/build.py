@@ -46,6 +46,23 @@ def copy_dict(val):
 #
 #
 
+class ConfigGroup(object):
+    def __init__(self, *configs):
+        self._configs = configs
+
+    @property
+    def name(self):
+        return ".".join(c.name for c in self._configs)
+
+    def __reversed__(self):
+        return reversed(self._configs)
+
+    def __iter__(self):
+        return iter(self._configs)
+
+    def __len__(self):
+        return len(self._configs)
+
 def _chain_configs(root):
     configs = root.configs
     if not configs:
@@ -57,7 +74,7 @@ def _chain_configs(root):
 
 def chain_configs(root):
     for c in _chain_configs(root):
-        yield c[:-1]
+        yield ConfigGroup(*c[:-1])
 
 def build_stages(configs, stages, shell_fail=False):
     saved_vars = {}
@@ -543,6 +560,7 @@ class BertStage(BertScope):
         if not images:
             raise ConfigFailed("Stage lacks images")
 
+        click.echo("### Stage: {}/{}".format(configs.name, self.name))
         job = BuildJob(self, configs, vars=vars, work_dir=self.work_dir)
         for from_image in images:
             self._build_from(job, configs, from_image)
