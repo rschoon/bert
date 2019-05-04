@@ -2,7 +2,7 @@
 import keyword as _keyword
 import os as _os
 
-from ..exc import BuildFailed
+from ..exc import BuildFailed, ConfigFailed
 
 TASKS = {}
 
