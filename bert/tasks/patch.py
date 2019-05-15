@@ -210,7 +210,7 @@ class ContainerPatcher(object):
 
     def apply_patch(self, fn):
         with open(fn) as f:
-            p = Patcher(f.read(), strip_dir=self.strip_dir)
+            p = Patch(f.read(), strip_dir=self.strip_dir)
 
         for fn in p.files:
             self._load_file(fn)
@@ -233,16 +233,18 @@ class TaskPatch(Task, name="patch"):
     class Schema:
         src = TaskVar('file', bare=True, help="Patch file to apply")
         chdir = TaskVar(default='/', help="Directory to apply patch from")
-        strip_dir = TaskVar(default=0, help="Strip directory prefixes from patched filenames" )
+        strip_dir = TaskVar(default=0, help="Strip directory prefixes from patched filenames")
 
-    def run_with_values(self, job):
+    def run_with_values(self, job, src, chdir, strip_dir):
         if os.path.isdir(src):
             patch_files = [os.path.join(src, fn) for fn in sorted(os.listdir(src))]
         else:
             patch_files = [src]
 
         container = job.create({
-            'patches' : [file_hash('sha256', fn) for fn in patch_files]
+            'patches' : [file_hash('sha256', fn) for fn in patch_files],
+            'chdir' : chdir,
+            'strip_dir' : strip_dir
         })
 
         with ContainerPatcher(container, chdir=chdir, strip_dir=strip_dir) as patcher:
