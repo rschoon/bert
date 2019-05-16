@@ -2,13 +2,11 @@
 import hashlib
 import os
 import re
-import random
 import subprocess
 import tarfile
 import tempfile
 
 from . import Task, TaskVar
-from ..utils import file_hash
 
 RE_CACHE_SUB = re.compile(r'[^-_.A-Za-z0-9]+')
 
@@ -18,9 +16,6 @@ def make_cache_key(path):
     if suffix:
         return "{}-{}".format(prefix, suffix)
     return prefix
-
-def random_id():
-    return "%x"%random.randrange(2**32)
 
 class GitRun(object):
     def __init__(self, job, *, repo, dest, ref):
@@ -35,8 +30,8 @@ class GitRun(object):
         commit = self.run_git()
 
         container = self.job.create({
-            'path' : self.path,
-            'commit' : commit,
+            'path': self.path,
+            'commit': commit,
         })
 
         with tempfile.TemporaryFile() as tf:
@@ -80,14 +75,14 @@ class GitRun(object):
                 have_fetch_head = False
                 # Some git repos forbit fetching via a commit hash, so retry
                 # with everything
-                print("Warning: fetching %s directly failed"%(self.ref, ))
+                print("Warning: fetching %s directly failed" % (self.ref, ))
                 subprocess.check_call(["git", "fetch", self.repo], cwd=dest)
 
             try:
                 if have_fetch_head:
                     subprocess.check_call(["git", "checkout", "FETCH_HEAD"], cwd=dest)
             except subprocess.CalledProcessError:
-                print("Warning: %s not found at FETCH_HEAD, retrying directly"%(self.ref,))
+                print("Warning: %s not found at FETCH_HEAD, retrying directly" % (self.ref,))
                 have_fetch_head = False
 
         if not have_fetch_head:

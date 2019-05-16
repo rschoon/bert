@@ -1,5 +1,4 @@
 
-import ast
 import hashlib
 import io
 import json
@@ -45,11 +44,11 @@ def expect_file_mode(mode, _sub_mode_re=re.compile('^(u|g|o)=([rwx]+)$')):
     for sm in modes:
         m = _sub_mode_re.match(sm)
         if not m:
-            raise ValueError('Invalud mode value %s in %s'%(sm, mode))
-        shift = ("o","g","u").index(m.group(1))*3
+            raise ValueError('Invalud mode value %s in %s' % (sm, mode))
+        shift = ("o", "g", "u").index(m.group(1))*3
         bits = 0
         for bi in m.group(2):
-            bits |= 2**('x','w','r').index(bi)
+            bits |= 2**('x', 'w', 'r').index(bi)
         rv |= (bits << shift)
     return rv
 
@@ -84,14 +83,14 @@ def file_hash(name, filename):
     while dirs:
         dirs = sorted(dirs)
         dirname = dirs.pop()
-        
+
         for n in os.listdir(dirname):
             fn = os.path.join(dirname, n)
             if os.path.isdir(fn):
                 dirs.append(fn)
             else:
                 fn_u8 = fn.encode('utf-8')
-                
+
                 h.update(struct.pack('L', len(fn_u8)))
                 h.update(fn_u8)
 

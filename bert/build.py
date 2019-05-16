@@ -32,7 +32,7 @@ def expect_list(val, subtype=None):
         return preserve_yaml_mark([expect_type(v, subtype) for v in val], val)
     if subtype is not None and isinstance(val, subtype):
         return preserve_yaml_mark([val], val)
-    raise ConfigError("Invalid value type", element=val)
+    raise ConfigFailed("Invalid value type", element=val)
 
 def expect_list_or_none(val, subtype=None):
     if val is None:
@@ -119,7 +119,10 @@ class BertTask(object):
         when = taskinfo.pop("when", None)
 
         if taskinfo:
-            raise ConfigFailed("Unexpected attributes %r"%", ".join(taskinfo.values()), element=taskinfo)
+            raise ConfigFailed(
+                "Unexpected attributes %r" % ", ".join(taskinfo.values()),
+                element=taskinfo
+            )
 
         try:
             return cls(action, name=name, value=value, env=env, when=when)
@@ -144,7 +147,7 @@ class BertTask(object):
         if value is not None:
             if isinstance(value, (dict, list, set)):
                 value = json.dumps(value)
-            return "%s: %s"%(self.task_name, value)
+            return "%s: %s" % (self.task_name, value)
 
         return self.task_name
 
@@ -223,7 +226,7 @@ class BuildJob(object):
             else:
                 self.work_dir = "/"
         else:
-            self.run_task(BertTask('set-image-attr', {'work-dir':self.work_dir}))
+            self.run_task(BertTask('set-image-attr', {'work-dir': self.work_dir}))
 
     def run_task(self, task):
         self.current_task = CurrentTask(task)
@@ -253,7 +256,7 @@ class BuildJob(object):
         click.echo("--- Id: {}".format(key_id))
 
         images = self.docker_client.images.list(filters={
-            'label' : '{}={}'.format(LABEL_BUILD_ID, key_id)
+            'label': '{}={}'.format(LABEL_BUILD_ID, key_id)
         }, all=True)
         if images:
             raise BuildImageExists(images[0])
@@ -268,7 +271,7 @@ class BuildJob(object):
 
         container = self.current_task.container = self.docker_client.containers.create(
             image=self.src_image,
-            labels={LABEL_BUILD_ID : key_id},
+            labels={LABEL_BUILD_ID: key_id},
             command=command,
             working_dir=work_dir,
             stdin_open=True,
@@ -311,7 +314,7 @@ class BuildJob(object):
                 raise BuildFailed(rc=result['StatusCode'], job=self)
 
         changes = [
-            "LABEL {}={}".format(LABEL_BUILD_ID, self.current_task.key_id) 
+            "LABEL {}={}".format(LABEL_BUILD_ID, self.current_task.key_id)
         ]
 
         cmd = self.current_task.image_command
@@ -350,12 +353,12 @@ class BuildJob(object):
         try:
             container = self.docker_client.containers.create(
                 image=image,
-                labels={LABEL_BUILD_ID : "@temporary"},
+                labels={LABEL_BUILD_ID: "@temporary"},
                 working_dir=self.work_dir,
                 stdin_open=True,
                 environment=["{}={}".format(*p) for p in env.items()],
                 tty=True,
-                command="/bin/bash" # XXX This is a guess!
+                command="/bin/bash"  # XXX This is a guess!
             )
             self._all_containers.append(container)
 
@@ -384,7 +387,7 @@ class BuildJob(object):
             return txt
 
         if isinstance(txt, dict):
-            return {self.template(k):self.template(v) for k,v in txt.items()}
+            return {self.template(k): self.template(v) for k, v in txt.items()}
         elif isinstance(txt, list):
             return [self.template(v) for v in txt]
 
@@ -450,7 +453,8 @@ class BertScope(object):
             if isinstance(svars, dict):
                 self.global_vars.update(svars)
             else:
-                raise ConfigFailed("Expected vars to be a mapping, but got {}".format(get_yaml_type_name(svars)),
+                raise ConfigFailed(
+                    "Expected vars to be a mapping, but got {}".format(get_yaml_type_name(svars)),
                     element=svars
                 )
 
@@ -582,8 +586,8 @@ class BertStage(BertScope):
     def put_vars(self, data):
         if "stage" not in data:
             data["stage"] = {
-                'name' : self.name,
-                'images' : self.from_
+                'name': self.name,
+                'images': self.from_
             }
         super().put_vars(data)
 
@@ -599,7 +603,7 @@ class BertBuild(BertScope):
         self._parse()
 
     def __repr__(self):
-        return "BertBuild(%r)"%(self.filename, )
+        return "BertBuild(%r)" % (self.filename, )
 
     def _parse(self):
         with open(self.filename, "r") as f:
@@ -629,14 +633,14 @@ class BertBuild(BertScope):
 
         if tasks:
             self.configs.append(BertConfig({
-                'name' : 'default'
+                'name': 'default'
             }))
             self.stages.append(BertStage(self, config))
         else:
             if 'configs' in config:
                 configs = config.pop("configs")
             else:
-                configs = [{"name" : "default"}]
+                configs = [{"name": "default"}]
                 for name in ('from', ):
                     try:
                         configs[0][name] = config.pop(name)

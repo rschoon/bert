@@ -1,5 +1,4 @@
 
-import collections
 from enum import IntEnum
 import gzip
 import hashlib
@@ -36,7 +35,7 @@ ARCH_CANON = {
     "i386": 1, "i486": 1, "i586": 1, "i686": 1, "ia32e": 1, "ia64": 9,
     "m68k": 6, "m68kmint": 13, "mips": 4, "mips64": 11, "mips64el": 11,
     "mips64r6": 21, "mips64r6el": 21, "mipsel": 4, "mipsr6": 20,
-    "mipsr6el": 20, "noarch" : 1, "pentium3": 1, "pentium4": 1, "ppc32dy4": 5, "ppc": 5,
+    "mipsr6el": 20, "noarch": 1, "pentium3": 1, "pentium4": 1, "ppc32dy4": 5, "ppc": 5,
     "ppc64": 16, "ppc64iseries": 16, "ppc64le": 16, "ppc64p7": 16,
     "ppc64pseries": 16, "ppc8260": 5, "ppc8560": 5, "ppciseries": 5,
     "ppcpseries": 5, "riscv64": 22, "rs6000": 8, "s390": 14, "s390x": 15,
@@ -50,9 +49,8 @@ ARCH_CANON = {
 OS_CANON = {
     "Linux": 1, "Irix": 2, "solaris": 3, "SunOS": 4, "AmigaOS": 5, "AIX": 5,
     "hpux10": 6, "osf1": 7, "FreeBSD": 8, "SCO_SV3.2v5.0.2": 9, "Irix64": 10,
-    "NextStep": 11, "bsdi": 12, "machten": 13, "cygwin32": 14, "cygwin32": 15,
-    "MP_RAS:": 16, "FreeMiNT": 17, "OS/390": 18, "VM/ESA": 19, "OS/390": 20,
-    "VM/ESA": 20, "darwin": 21, "macosx": 21
+    "NextStep": 11, "bsdi": 12, "machten": 13, "cygwin32": 14, "MP_RAS:": 16,
+    "FreeMiNT": 17, "OS/390": 18, "VM/ESA": 19, "darwin": 21, "macosx": 21
 }
 
 class RPMSense(IntEnum):
@@ -185,7 +183,7 @@ RPM_TAGS = [RPMTag(*a) for a in [
     (1126, 'payloadflags', rpm_tag_str),
 ]]
 
-RPM_TAGS_BY_NAME = {tag.name : tag for tag in RPM_TAGS}
+RPM_TAGS_BY_NAME = {tag.name: tag for tag in RPM_TAGS}
 
 #
 #
@@ -225,7 +223,7 @@ def make_rpm_header(header, version=1):
     index_bytes = b"".join(index)
     data_bytes = b"".join(data)
 
-    return b'%s%s%s'%(
+    return b'%s%s%s' % (
         struct.pack('!3sBxxxxII', b'\x8e\xad\xe8', version, len(index), data_offset),
         index_bytes,
         data_bytes
@@ -233,7 +231,8 @@ def make_rpm_header(header, version=1):
 
 class RPMFileItem(object):
     def __init__(self, filename, size=0, mode=0o644, rdev=0, mtime=0, md5=None,
-            nlink=1, linkto=None, flags=0, user="root", group="group", inode=0, device=0, lang=""):
+                 nlink=1, linkto=None, flags=0, user="root", group="group",
+                 inode=0, device=0, lang=""):
         self.filename = filename
         self.basename = os.path.basename(filename)
         self.dirname = os.path.join(os.path.dirname(filename), "")
@@ -255,11 +254,11 @@ class RPMDep(object):
     RE_VERSIONED = re.compile(r'^(?P<name>.*?)\s*(?P<cmp>=|>=|<=|>|<)\s*(?P<version>\d.*?)$')
 
     CMP_TO_FLAG = {
-        '=' : RPMSense.Equal,
-        '>=' : RPMSense.Equal | RPMSense.Greater,
-        '>' : RPMSense.Greater,
-        '<=' : RPMSense.Equal | RPMSense.Less,
-        '<' : RPMSense.Less
+        '=': RPMSense.Equal,
+        '>=': RPMSense.Equal | RPMSense.Greater,
+        '>': RPMSense.Greater,
+        '<=': RPMSense.Equal | RPMSense.Less,
+        '<': RPMSense.Less
     }
 
     def __init__(self, name, version=None, flags=0):
@@ -308,7 +307,7 @@ class RPMBuild(object):
         elif self.compress_type == "xz":
             if lzma is None:
                 raise RuntimeError("LZMA compression not available")
-            self.payload_flags = 7 # XXX Sometimes this is 2?  Why?
+            self.payload_flags = 7  # XXX Sometimes this is 2?  Why?
             self.compressor = lambda f: lzma.LZMAFile(f, mode='a', preset=self.payload_flags, check=lzma.CHECK_SHA256)
             self.requires.append(RPMDep("rpmlib(PayloadIsXz) <= 5.2-1"))
         else:
@@ -395,7 +394,8 @@ class RPMBuild(object):
         header[flagfield] = flags
 
     def build(self, job):
-        lead = struct.pack("!4sBBhh65sxhh16x",
+        lead = struct.pack(
+            "!4sBBhh65sxhh16x",
             # unsigned char magic[4]
             b'\xed\xab\xee\xdb',
             # unsigned char major, minor
@@ -422,7 +422,7 @@ class RPMBuild(object):
 
             files = sorted(self.files, key=lambda f: f.filename)
             all_dirnames = sorted(set(f.dirname for f in files))
-            all_dirnames_lookup = {val:idx for idx,val in enumerate(all_dirnames)}
+            all_dirnames_lookup = {val: idx for idx, val in enumerate(all_dirnames)}
 
             header = dict(self.header)
             self._put_deps(header, self.requires, 'requirename', 'requireversion', 'requireflags')
@@ -433,8 +433,8 @@ class RPMBuild(object):
             header['dirindexes'] = [all_dirnames_lookup[f.dirname] for f in files]
             header['basenames'] = [f.basename for f in files]
             header['filesizes'] = [f.size for f in files]
-            header['filemodes'] = [f.mode&0xffff for f in files]
-            header['filerdevs'] = [f.rdev&0xffff for f in files]
+            header['filemodes'] = [f.mode & 0xffff for f in files]
+            header['filerdevs'] = [f.rdev & 0xffff for f in files]
             header['filemtimes'] = [f.mtime for f in files]
             header['filemd5s'] = [f.md5.hexdigest() if f.md5 is not None else '' for f in files]
             header['filelinktos'] = [(f.linkto or "") for f in files]
@@ -461,8 +461,8 @@ class RPMBuild(object):
                 self.contents_md5.update(chunk)
 
             sig_header = make_rpm_header({
-                'sig_size' : contents_f.tell() + header_f.tell(),
-                'sig_md5' : self.contents_md5.digest()
+                'sig_size': contents_f.tell() + header_f.tell(),
+                'sig_md5': self.contents_md5.digest()
             })
 
             with open_output(self.dest, "wb") as f:
@@ -515,19 +515,19 @@ class RPMBuild(object):
                 filename_utf8 = os.path.join(".", os.path.relpath(filename, "/")).encode('utf-8') + b'\x00'
                 cpiof.write(b"".join((
                     b"070701",
-                    b"%08x"%self.path_idx,
-                    b"%08x"%ti.mode,
-                    b"%08x"%ti.uid,
-                    b"%08x"%ti.gid,
-                    b"%08x"%nlink,
-                    b"%08x"%ti.mtime,
-                    b"%08x"%size,
-                    b"%08x"%0,
-                    b"%08x"%0,
-                    b"%08x"%0,
-                    b"%08x"%0,
-                    b"%08x"%len(filename_utf8),
-                    b"%08x"%0
+                    b"%08x" % self.path_idx,
+                    b"%08x" % ti.mode,
+                    b"%08x" % ti.uid,
+                    b"%08x" % ti.gid,
+                    b"%08x" % nlink,
+                    b"%08x" % ti.mtime,
+                    b"%08x" % size,
+                    b"%08x" % 0,
+                    b"%08x" % 0,
+                    b"%08x" % 0,
+                    b"%08x" % 0,
+                    b"%08x" % len(filename_utf8),
+                    b"%08x" % 0
                 )))
 
                 # cpio filename

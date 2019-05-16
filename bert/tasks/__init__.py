@@ -9,7 +9,7 @@ TASKS = {}
 def get_task(name, value):
     cls = _find_task_cls(name)
     if cls is None:
-        raise ValueError("No task called `%s'."%(name,))
+        raise ValueError("No task called `%s'." % (name,))
     return cls(value)
 
 _tasks_fully_loaded = False
@@ -84,7 +84,7 @@ class Task(object):
         if self.Schema is not None:
             value = self.schema.task_apply_values(job, self.value)
         else:
-            value = {'value' : self.value}
+            value = {'value': self.value}
         self.run_with_values(job, **value)
 
     def run_with_values(self, job, **kwargs):
@@ -127,7 +127,7 @@ class TaskSchema(object):
                     varobj.handle(vals, job, v)
                 else:
                     if self.extra is None:
-                        raise ConfigFailed("Unknown item `%s' found"%k, element=value)
+                        raise ConfigFailed("Unknown item `%s' found" % k, element=value)
                     else:
                         if extras is None:
                             extras = {}
@@ -143,13 +143,14 @@ class TaskSchema(object):
         for name, item in self.values.items():
             if item.name not in vals:
                 if item.required:
-                    raise ConfigFailed("Missing required %s"%name, element=value)
+                    raise ConfigFailed("Missing required %s" % name, element=value)
                 vals[item.name] = item.default
 
         return vals
 
 class TaskVar(object):
     name = None
+
     def __init__(self, *aliases, bare=False, extra=False, default=None, type=None, required=False, help=None):
         self.bare = bare
         self.aliases = aliases

@@ -1,13 +1,10 @@
 
 import hashlib
-import io
 import json
-import os
 import requests
 import tempfile
 
 from . import Task, TaskVar
-from ..utils import file_hash, value_hash
 
 class TaskFetch(Task, name="fetch"):
     """
@@ -31,7 +28,7 @@ class TaskFetch(Task, name="fetch"):
         elif method == "POST":
             call_req = requests.post
         else:
-            raise ValueError("Can't handle method %s"%method)
+            raise ValueError("Can't handle method %s" % method)
 
         if dest_var is None and dest is None:
             raise ValueError("No destination given")
@@ -42,7 +39,7 @@ class TaskFetch(Task, name="fetch"):
                 for chunk in resp.iter_content(chunk_size=None):
                     sha256_h.update(chunk)
                     tf.write(chunk)
-    
+
             if dest_var is not None:
                 tf.seek(0)
 
@@ -56,8 +53,8 @@ class TaskFetch(Task, name="fetch"):
                 tf.seek(0)
 
                 container = job.create({
-                    'file_sha256' : sha256_h.hexdigest(),
-                    'dest' : dest
+                    'file_sha256': sha256_h.hexdigest(),
+                    'dest': dest
                 })
 
                 container.put_archive(

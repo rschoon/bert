@@ -1,7 +1,6 @@
 
 import io
 import os
-import posixpath
 import shlex
 import tarfile
 import tempfile
@@ -35,20 +34,18 @@ class TaskScript(Task, name="script"):
             script_info.size = len(contents_bytes)
 
             self._run(job, {
-                'value' : [],
-                'file_sha256' : content_hash
+                'value': [],
+                'file_sha256': content_hash
             }, script_info, io.BytesIO(contents_bytes), script_name, [])
         else:
-            command = [posixpath.join(job.work_dir, script[0])]+script[1:]
-
             script_info = tarfile.TarInfo(name=script_name)
             script_info.mode = 0o755
             script_info.size = os.path.getsize(script[0])
 
             with open(script[0], "rb") as script_fileobj:
                 self._run(job, {
-                    'value' : script[0] if len(script) == 1 else script,
-                    'file_sha256' : file_hash('sha256', script[0])
+                    'value': script[0] if len(script) == 1 else script,
+                    'file_sha256': file_hash('sha256', script[0])
                 }, script_info, script_fileobj, script_name, script[1:])
 
     def _run(self, job, job_json, script_info, script_fileobj, script_name, args):

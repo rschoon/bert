@@ -6,7 +6,7 @@ import yaml
 
 from . import exc
 
-__all__ = ['from_yaml', 'YamlMarked', 'preserve_yaml_type', 'get_yaml_type_name']
+__all__ = ['from_yaml', 'YamlMarked', 'preserve_yaml_mark', 'get_yaml_type_name']
 
 #
 #
@@ -142,11 +142,11 @@ def _construct_yaml_bool(loader, node):
     return YamlBool(loader.construct_yaml_bool(node), loader=loader, node=node)
 
 @constructor('tag:yaml.org,2002:int')
-def _construct_yaml_bool(loader, node):
+def _construct_yaml_int(loader, node):
     return YamlInt(loader.construct_yaml_int(node), loader=loader, node=node)
 
 @constructor('tag:yaml.org,2002:float')
-def _construct_yaml_bool(loader, node):
+def _construct_yaml_float(loader, node):
     return YamlFloat(loader.construct_yaml_float(node), loader=loader, node=node)
 
 @constructor('tag:yaml.org,2002:binary')

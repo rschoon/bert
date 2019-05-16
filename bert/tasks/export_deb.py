@@ -1,5 +1,4 @@
 
-import collections
 import io
 import os
 import tarfile
@@ -26,9 +25,9 @@ class TaskExportDeb(Task, name="export-deb"):
         paths = TaskVar(help="List of paths to include in package")
         compress_type = TaskVar(default="xz", help="Compression to use for package")
         control = TaskVar(help="Control values for package, which is essentially the package metadata. "
-                        "The control contents can be specified as the literal file contents, or as a mapping. "
-                        "Consult the `Control Fields section of the Debian Policy Manual <https://www.debian.org/doc/debian-policy/ch-controlfields.html>`_ "
-                        "for more information.")
+                          "The control contents can be specified as the literal file contents, or as a mapping. "
+                          "Consult the `Control Fields section of the Debian Policy Manual <https://www.debian.org/doc/debian-policy/ch-controlfields.html>`_ "
+                          "for more information.")
 
     def run_with_values(self, job, *, dest, paths, compress_type, control):
         # Instead of using dpkg-deb, we'll build it manually.  This

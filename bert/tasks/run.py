@@ -13,7 +13,7 @@ class TaskRun(Task, name="run"):
 
     def run_with_values(self, job, *, command):
         job.create({
-            'value' : command
+            'value': command
         }, command=command)
 
         job.commit()

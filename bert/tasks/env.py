@@ -15,7 +15,7 @@ class TaskEnv(Task, name="env"):
 
     def run_with_values(self, job, _env):
         job.create({
-            'env' : _env
+            'env': _env
         })
 
         job.commit(env=_env)

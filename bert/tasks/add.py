@@ -19,8 +19,8 @@ class TaskAdd(Task, name="add"):
 
     def run_with_values(self, job, path, dest, mode):
         job_args = {
-            'value' : path,
-            'file_sha256' : file_hash('sha256', path)
+            'value': path,
+            'file_sha256': file_hash('sha256', path)
         }
         if mode is not None:
             job_args['mode'] = mode
@@ -38,20 +38,20 @@ class TaskAdd(Task, name="add"):
 
         with tempfile.TemporaryFile() as tf:
             with tarfile.open(fileobj=tf, mode="w") as tar:
-               ti = tar.gettarinfo(path, arcname)
+                ti = tar.gettarinfo(path, arcname)
 
-               if mode is not None:
-                   ti.mode = (ti.mode & ~0o777) | mode
+                if mode is not None:
+                    ti.mode = (ti.mode & ~0o777) | mode
 
-               if ti.isreg():
-                   with open(path, "rb") as fi:
-                       tar.addfile(ti, fi)
-               elif tarinfo.isdir():
-                   tar.addfile(ti)
-                   for fn in sorted(os.listdir(path)):
-                       tar.add(os.path.join(name, fn), posixpath.join(arcname, fn))
-               else:
-                   tar.addfile(ti)
+                if ti.isreg():
+                    with open(path, "rb") as fi:
+                        tar.addfile(ti, fi)
+                elif ti.isdir():
+                    tar.addfile(ti)
+                    for fn in sorted(os.listdir(path)):
+                        tar.add(os.path.join(path, fn), posixpath.join(arcname, fn))
+                else:
+                    tar.addfile(ti)
 
             tf.seek(0)
 

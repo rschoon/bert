@@ -1,7 +1,4 @@
 
-import os
-import tarfile
-
 from . import Task, TaskVar
 from ..utils import file_hash
 
@@ -19,8 +16,8 @@ class TaskImportTar(Task, name="import-tar"):
             dest = job.work_dir
 
         container = job.create({
-            'file_sha256' : file_hash('sha256', src),
-            'dest' : dest
+            'file_sha256': file_hash('sha256', src),
+            'dest': dest
         })
 
         with open(src, "rb") as f:

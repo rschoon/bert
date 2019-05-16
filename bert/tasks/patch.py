@@ -25,7 +25,7 @@ class PatchedFile(object):
                 with open(self.filename, "r") as fileobj:
                     self.lines = list(self._load_lines(fileobj))
             except FileNotFoundError as exc:
-                raise PatchError("%s does not exist"%self.filename) from exc
+                raise PatchError("%s does not exist" % self.filename) from exc
         else:
             self.lines = list(self._load_lines(lines))
 
@@ -51,7 +51,7 @@ class PatchedFile(object):
         # TODO: Recall first changed line and offset, and only update starting from there
         with open(self.filename, "w") as fileobj:
             for line in self.lines:
-                fileobj.write("%s%s"%line)
+                fileobj.write("%s%s" % line)
 
     def apply_diff(self, changes):
         if not changes:
@@ -158,7 +158,7 @@ class Patch(object):
                 fn_adj = True
 
             if not fn_adj:
-                raise RuntimeError("Path for changed %r not found"%fn_orig)
+                raise RuntimeError("Path for changed %r not found" % fn_orig)
 
             pf = patched_files.get(fn)
             if pf is None:
@@ -242,9 +242,9 @@ class TaskPatch(Task, name="patch"):
             patch_files = [src]
 
         container = job.create({
-            'patches' : [file_hash('sha256', fn) for fn in patch_files],
-            'chdir' : chdir,
-            'strip_dir' : strip_dir
+            'patches': [file_hash('sha256', fn) for fn in patch_files],
+            'chdir': chdir,
+            'strip_dir': strip_dir
         })
 
         with ContainerPatcher(container, chdir=chdir, strip_dir=strip_dir) as patcher:
