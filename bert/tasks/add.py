@@ -1,11 +1,12 @@
 
+import io
 import os
 import posixpath
 import tarfile
 import tempfile
 
 from . import Task, TaskVar
-from ..utils import file_hash, expect_file_mode
+from ..utils import expect_file_mode, IOHashWriter
 
 class TaskAdd(Task, name="add"):
     """
@@ -16,16 +17,16 @@ class TaskAdd(Task, name="add"):
         path = TaskVar('src', bare=True, help="Path to local file to add")
         dest = TaskVar('dest', help="Destination path of file")
         mode = TaskVar(type=expect_file_mode, help="The unix file mode to use for the tar file.")
+        template = TaskVar(help="Treat added file as a template", default=False, type=bool)
 
-    def run_with_values(self, job, path, dest, mode):
+    def run_with_values(self, job, path, dest, mode, template):
         job_args = {
             'value': path,
-            'file_sha256': file_hash('sha256', path)
         }
         if mode is not None:
             job_args['mode'] = mode
-
-        container = job.create(job_args)
+        if template:
+            job_args['template'] = True
 
         arcname = os.path.basename(path)
         if dest is None:
@@ -37,27 +38,48 @@ class TaskAdd(Task, name="add"):
                 arcname = dest
 
         with tempfile.TemporaryFile() as tf:
-            with tarfile.open(fileobj=tf, mode="w") as tar:
-                ti = tar.gettarinfo(path, arcname)
+            hash_wrapper = IOHashWriter('sha256', tf)
 
-                if mode is not None:
-                    ti.mode = (ti.mode & ~0o777) | mode
-
-                if ti.isreg():
-                    with open(path, "rb") as fi:
-                        tar.addfile(ti, fi)
-                elif ti.isdir():
-                    tar.addfile(ti)
-                    for fn in sorted(os.listdir(path)):
-                        tar.add(os.path.join(path, fn), posixpath.join(arcname, fn))
-                else:
-                    tar.addfile(ti)
+            with tarfile.open(fileobj=hash_wrapper, mode="w") as tar:
+                self._build_tar(job, tar, arcname, path, mode, template)
 
             tf.seek(0)
+            job_args['tar_sha256'] = hash_wrapper.hexdigest()
 
+            container = job.create(job_args)
             container.put_archive(
                 path="/",
                 data=tf
             )
 
         job.commit()
+
+    def _build_tar(self, job, tar, arcsrc, src, mode, template):
+        paths = [(arcsrc, src)]
+
+        while True:
+            try:
+                arcname, path = paths.pop()
+            except IndexError:
+                break
+
+            ti = tar.gettarinfo(path, arcname)
+
+            if mode is not None:
+                ti.mode = (ti.mode & ~0o777) | mode
+
+            if ti.isreg():
+                if template:
+                    with open(path, "r", encoding="utf-8") as fi:
+                        content = job.template(fi.read()).encode("utf-8")
+                        ti.size = len(content)
+                        tar.addfile(ti, io.BytesIO(content))
+                else:
+                    with open(path, "rb") as fi:
+                        tar.addfile(ti, fi)
+            elif ti.isdir():
+                tar.addfile(ti)
+                for fn in sorted(os.listdir(path), reversed=True):
+                    paths.append((os.path.join(path, fn), posixpath.join(arcname, fn)))
+            else:
+                tar.addfile(ti)

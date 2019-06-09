@@ -107,6 +107,51 @@ def value_hash(name, value):
     h.update(value)
     return h.hexdigest()
 
+class IOHashWriter(io.IOBase):
+    def __init__(self, hash_name, fileobj):
+        if not fileobj.writable():
+            raise ValueError("IOHashWriter requires writable fileobj")
+        self._h = hashlib.new(hash_name)
+        self._inner = fileobj
+
+    def digest(self):
+        return self._h.digest()
+
+    def hexdigest(self):
+        return self._h.hexdigest()
+
+    @property
+    def closed(self):
+        return self._inner.closed
+
+    def close(self):
+        pass
+
+    def fileno(self):
+        return self._inner.fileno()
+
+    def seek(self):
+        raise OSError("Not seekable")
+
+    def seekable(self):
+        return False
+
+    def tell(self):
+        return self._inner.tell()
+
+    def readable(self):
+        return False
+
+    def truncate(self, size=None):
+        raise OSError("Not truncatable")
+
+    def writable(self):
+        return self._inner.writable()
+
+    def write(self, b):
+        self._h.update(b)
+        return self._inner.write(b)
+
 class IOFromIterable(io.RawIOBase):
     def __init__(self, iterable):
         self._iter = iter(iterable)
