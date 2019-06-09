@@ -631,24 +631,20 @@ class BertBuild(BertScope):
                 element=config
             )
 
-        if tasks:
-            self.configs.append(BertConfig({
-                'name': 'default'
-            }))
-            self.stages.append(BertStage(self, config))
+        if 'configs' in config:
+            configs = config.pop("configs")
         else:
-            if 'configs' in config:
-                configs = config.pop("configs")
-            else:
-                configs = [{"name": "default"}]
-                for name in ('from', ):
-                    try:
-                        configs[0][name] = config.pop(name)
-                    except KeyError:
-                        pass
+            configs = [{"name": "default"}]
+            for name in ('from', ):
+                try:
+                    configs[0][name] = config.pop(name)
+                except KeyError:
+                    pass
+        self.configs = BertConfig.create_from_list(configs)
 
-            self.configs = BertConfig.create_from_list(configs)
-
+        if tasks:
+            self.stages.append(BertStage(self, {'tasks': tasks}, name='main'))
+        else:
             for stage_name, stage in stages.items():
                 stage = BertStage(self, stage, name=stage_name)
                 self.stages.append(stage)
