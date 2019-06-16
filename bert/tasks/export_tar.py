@@ -4,7 +4,7 @@ import re
 import tarfile
 
 from . import Task, TaskVar
-from ..utils import IOFromIterable, expect_file_mode, open_output
+from ..utils import TarGlobList, expect_file_mode, open_output
 
 RE_TAR_EXT = re.compile(r'\.tar\.(bz2|xz|gz)$')
 
@@ -25,7 +25,7 @@ class TaskExportTar(Task, name="export-tar"):
                                 "If not specified, the compression type will be inferred from "
                                 "the destination file name.")
         mode = TaskVar(type=expect_file_mode, help="The unix file mode to use for the tar file.")
-        paths = TaskVar(help="List of paths to include in tar file")
+        paths = TaskVar(help="List of paths to include in tar file", type=TarGlobList)
 
     def run_with_values(self, job, *, dest, preamble, preamble_encoding, compress_type, mode, paths):
         if os.path.exists(dest) and not job.changes:
@@ -47,23 +47,8 @@ class TaskExportTar(Task, name="export-tar"):
 
             container = job.create({})
             with tarfile.open(fileobj=f, mode="w|"+compress_type) as tout:
-                for path in paths:
-                    self._copy_tar(container, path, tout)
+                for ti, tdata in paths.iter_container_files(container):
+                    tout.addfile(ti, tdata)
 
             if mode is not None:
                 os.fchmod(f.fileno(), mode)
-
-    def _copy_tar(self, container, path, tout):
-        tstream, tstat = container.get_archive(path)
-        tf = IOFromIterable(tstream)
-
-        with tarfile.open(fileobj=tf, mode="r|") as tin:
-            while True:
-                ti = tin.next()
-                if ti is None:
-                    break
-
-                ti.name = os.path.join(os.path.dirname(path), ti.name)
-
-                tdata = tin.extractfile(ti) if ti.isreg() else None
-                tout.addfile(ti, tdata)

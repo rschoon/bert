@@ -6,7 +6,6 @@ import io
 from itertools import chain
 import os
 import re
-import tarfile
 import tempfile
 import shutil
 import struct
@@ -22,7 +21,7 @@ except ImportError:
     lzma = None
 
 from . import Task, TaskVar
-from ..utils import IOFromIterable, open_output
+from ..utils import TarGlobList, open_output
 
 # This is derived from arch_canon entries in rpmrc
 # (We don't include the uname equiv portion)
@@ -339,7 +338,7 @@ class RPMBuild(object):
             self.dest = dest
 
         if not self.paths:
-            raise RuntimeError("Need a path")
+            raise RuntimeError("Need path")
 
         self._add_to_header("name", self.name)
         self._add_to_header("epoch", self.epoch)
@@ -416,8 +415,8 @@ class RPMBuild(object):
 
         container = job.create({})
         with tempfile.TemporaryFile() as contents_f, tempfile.TemporaryFile() as header_f:
-            for path in self.paths:
-                self._copy_data(container, contents_f, path)
+            for ti, tdata in self.paths.iter_container_files(container):
+                self._copy_data(container, contents_f, ti, tdata)
             self._write_cpio_trailer(contents_f)
 
             files = sorted(self.files, key=lambda f: f.filename)
@@ -478,88 +477,77 @@ class RPMBuild(object):
                 with self.compressor(f) as comp_f:
                     shutil.copyfileobj(contents_f, comp_f)
 
-    def _copy_data(self, container, cpiof, path):
-        dirname = os.path.dirname(path)
-        tstream, tstat = container.get_archive(path)
-        tf = IOFromIterable(tstream)
+    def _copy_data(self, container, cpiof, ti, tdata):
+        self.path_idx += 1
+        nlink = (2 if ti.isdir() else 1)
 
-        with tarfile.open(fileobj=tf, mode="r|") as tin:
+        user = "root"
+        if ti.uname:
+            user = ti.uname
+        elif ti.uid != 0:
+            user = str(ti.uid)
+        group = "root"
+        if ti.gname:
+            group = ti.gname
+        elif ti.gid != 0:
+            group = str(ti.gid)
+
+        size = ti.size
+        if ti.issym():
+            link_target = ti.linkname.encode('utf-8')
+            tdata = io.BytesIO(link_target)
+            size = len(link_target)
+
+        # cpio header
+        filename = ti.name
+        filename_utf8 = os.path.join(".", os.path.relpath(filename, "/")).encode('utf-8') + b'\x00'
+        cpiof.write(b"".join((
+            b"070701",
+            b"%08x" % self.path_idx,
+            b"%08x" % ti.mode,
+            b"%08x" % ti.uid,
+            b"%08x" % ti.gid,
+            b"%08x" % nlink,
+            b"%08x" % ti.mtime,
+            b"%08x" % size,
+            b"%08x" % 0,
+            b"%08x" % 0,
+            b"%08x" % 0,
+            b"%08x" % 0,
+            b"%08x" % len(filename_utf8),
+            b"%08x" % 0
+        )))
+
+        # cpio filename
+        cpiof.write(filename_utf8)
+        cpiof.write(_align_padding(cpiof.tell(), 4))
+
+        # cpio contents
+        md5hash = None
+        if tdata is not None:
+            md5hash = hashlib.md5()
             while True:
-                ti = tin.next()
-                if ti is None:
+                chunk = tdata.read(2**14)
+                if not chunk:
                     break
+                self.install_size += len(chunk)
+                md5hash.update(chunk)
+                cpiof.write(chunk)
 
-                self.path_idx += 1
-                tdata = tin.extractfile(ti) if ti.isreg() else None
-                filename = os.path.join(dirname, ti.name)
-                nlink = (2 if ti.isdir() else 1)
+        cpiof.write(_align_padding(cpiof.tell(), 4))
 
-                user = "root"
-                if ti.uname:
-                    user = ti.uname
-                elif ti.uid != 0:
-                    user = str(ti.uid)
-                group = "root"
-                if ti.gname:
-                    group = ti.gname
-                elif ti.gid != 0:
-                    group = str(ti.gid)
-
-                size = ti.size
-                if ti.issym():
-                    link_target = ti.linkname.encode('utf-8')
-                    tdata = io.BytesIO(link_target)
-                    size = len(link_target)
-
-                # cpio header
-                filename_utf8 = os.path.join(".", os.path.relpath(filename, "/")).encode('utf-8') + b'\x00'
-                cpiof.write(b"".join((
-                    b"070701",
-                    b"%08x" % self.path_idx,
-                    b"%08x" % ti.mode,
-                    b"%08x" % ti.uid,
-                    b"%08x" % ti.gid,
-                    b"%08x" % nlink,
-                    b"%08x" % ti.mtime,
-                    b"%08x" % size,
-                    b"%08x" % 0,
-                    b"%08x" % 0,
-                    b"%08x" % 0,
-                    b"%08x" % 0,
-                    b"%08x" % len(filename_utf8),
-                    b"%08x" % 0
-                )))
-
-                # cpio filename
-                cpiof.write(filename_utf8)
-                cpiof.write(_align_padding(cpiof.tell(), 4))
-
-                # cpio contents
-                md5hash = None
-                if tdata is not None:
-                    md5hash = hashlib.md5()
-                    while True:
-                        chunk = tdata.read(2**14)
-                        if not chunk:
-                            break
-                        self.install_size += len(chunk)
-                        md5hash.update(chunk)
-                        cpiof.write(chunk)
-
-                cpiof.write(_align_padding(cpiof.tell(), 4))
-
-                self.files.append(RPMFileItem(
-                    filename,
-                    size=size,
-                    mode=ti.mode,
-                    mtime=ti.mtime,
-                    md5=md5hash,
-                    nlink=nlink,
-                    linkto=ti.linkname,
-                    user=user,
-                    group=group,
-                    inode=self.path_idx,
-                ))
+        self.files.append(RPMFileItem(
+            filename,
+            size=size,
+            mode=ti.mode,
+            mtime=ti.mtime,
+            md5=md5hash,
+            nlink=nlink,
+            linkto=ti.linkname,
+            user=user,
+            group=group,
+            inode=self.path_idx,
+        ))
 
     def _write_cpio_trailer(self, cpiof):
         cpiof.write(
@@ -593,7 +581,7 @@ class TaskExportRpm(Task, name="export-rpm"):
         dest_dir = TaskVar(default=".",
                            help="The destination directory to put the package if dest "
                            "is not explicitly provided")
-        paths = TaskVar(help="List of paths to include in package")
+        paths = TaskVar(help="List of paths to include in package", type=TarGlobList)
 
     def run_with_values(self, job, **params):
         build = RPMBuild(job, **params)

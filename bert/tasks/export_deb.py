@@ -4,7 +4,7 @@ import os
 import tarfile
 
 from . import Task, TaskVar
-from ..utils import IOFromIterable, open_output
+from ..utils import TarGlobList, open_output
 
 class TaskExportDeb(Task, name="export-deb"):
     """
@@ -22,7 +22,7 @@ class TaskExportDeb(Task, name="export-deb"):
 
     class Schema:
         dest = TaskVar("name", help="Local destination filename for package")
-        paths = TaskVar(help="List of paths to include in package")
+        paths = TaskVar(help="List of paths to include in package", type=TarGlobList)
         compress_type = TaskVar(default="xz", help="Compression to use for package")
         control = TaskVar(help="Control values for package, which is essentially the package metadata. "
                           "The control contents can be specified as the literal file contents, or as a mapping. "
@@ -62,8 +62,7 @@ class TaskExportDeb(Task, name="export-deb"):
             offset_sz_data = self._write_ar_header(far, "data.tar."+compress_type)
             data_start = far.tell()
             with tarfile.open(fileobj=far, mode="w|"+compress_type) as tarf:
-                for path in paths:
-                    self._copy_data(container, tarf, path)
+                self._copy_data(container, tarf, paths)
             self._update_ar_size(far, offset_sz_data, far.tell() - data_start)
             self._align_ar_data(far)
 
@@ -157,18 +156,6 @@ class TaskExportDeb(Task, name="export-deb"):
         info.size = len(control.getvalue())
         tarf.addfile(info, control)
 
-    def _copy_data(self, container, tarf, path):
-        dirname = os.path.join(".", os.path.relpath(os.path.dirname(path), "/"))
-        tstream, tstat = container.get_archive(path)
-        tf = IOFromIterable(tstream)
-
-        with tarfile.open(fileobj=tf, mode="r|") as tin:
-            while True:
-                ti = tin.next()
-                if ti is None:
-                    break
-                tdata = tin.extractfile(ti) if ti.isreg() else None
-
-                ti.name = os.path.join(dirname, ti.name)
-
-                tarf.addfile(ti, tdata)
+    def _copy_data(self, container, tarf, paths):
+        for ti, tdata in paths.iter_container_files(container):
+            tarf.addfile(ti, tdata)
