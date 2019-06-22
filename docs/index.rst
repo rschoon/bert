@@ -11,6 +11,7 @@ The bert Build System
 
     build-files
     tasks
+    templates
 
 
 Indices and tables
