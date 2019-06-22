@@ -1,6 +1,6 @@
 
-Templates
-=========
+Templating
+==========
 
 To increase the flexibility in task definitions, bert uses the jinja template
 engine which is applied to most values in the bert-build yaml. This allows for
