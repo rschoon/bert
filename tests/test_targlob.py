@@ -35,13 +35,16 @@ class TestPrefix(unittest.TestCase):
 class TestList(unittest.TestCase):
     def setUp(self):
         from bert.utils.targlob import  TarGlobList
-        self. TarGlobList = TarGlobList
+        self.TarGlobList = TarGlobList
+
+    def targlob_targets(self, *args, **kwargs):
+        return set(map(str, self.TarGlobList(*args, **kwargs).iter_targets()))
 
     def test_empty(self):
         assert len(self.TarGlobList()) == 0
 
     def test_targets(self):
-        assert set(self.TarGlobList(["regex:/abc/def", "/abc/ghb"]).iter_targets()) \
+        assert self.targlob_targets(["regex:/abc/def", "/abc/ghb"]) \
             == {"/abc"}
-        assert set(self.TarGlobList(["regex:/abc/def", "/bin/ghb"]).iter_targets()) \
+        assert self.targlob_targets(["regex:/abc/def", "/bin/ghb"]) \
             == {"/abc", "/bin/ghb"}

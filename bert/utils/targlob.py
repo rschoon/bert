@@ -117,6 +117,28 @@ def _regex_prefix(value):
     else:
         return Prefix(posixpath.dirname(prefix), posixpath.basename(prefix))
 
+class _TargetItem(object):
+    __slots__ = ('path', 'at')
+
+    def __init__(self, path, at):
+        self.path = path
+        self.at = at
+
+    def __hash__(self):
+        return hash(self.path)
+
+    def __eq__(self, other):
+        return self.path == getattr(other, "path", other)
+
+    def __add__(self, other):
+        return self.__class__(self.path + other.path, self.at)
+
+    def __getitem__(self, key):
+        return self.__class__(self.path[key], self.at)
+
+    def __str__(self):
+        return self.path
+
 class _TargetTree(object):
     __slots__ = ('items', 'leaf')
 
@@ -126,14 +148,14 @@ class _TargetTree(object):
         for path in paths:
             self.insert(path)
 
-    def insert(self, path):
-        i = path.find('/', 1)
+    def insert(self, item):
+        i = item.path.find('/', 1)
         if i < 0:
             # make as leaf
-            self.items[path].leaf = True
+            self.items[item].leaf = True
         else:
             # make and descend
-            self.items[path[:i]].insert(path[i:])
+            self.items[item[:i]].insert(item[i:])
 
     def __bool__(self):
         return len(self.items) > 0
@@ -164,7 +186,7 @@ class TarGlobList(object):
         return iter(self._items)
 
     def iter_targets(self):
-        yield from _TargetTree(item.static_prefix.path for item in self)
+        yield from _TargetTree(_TargetItem(item.static_prefix.path, item.at) for item in self)
 
     def matches(self, path):
         path = pathlib.PurePosixPath(path)
@@ -177,13 +199,14 @@ class TarGlobList(object):
 
     def iter_container_files(self, container):
         for target in self.iter_targets():
-            if target.endswith("/"):
-                target_prefix = target
+            if target.path.endswith("/"):
+                target_prefix = target.path
             else:
-                target_prefix = posixpath.dirname(target)
+                target_prefix = posixpath.dirname(target.path)
 
-            tstream, tstat = container.get_archive(target)
+            tstream, tstat = container.get_archive(target.path)
             tf = utils.IOFromIterable(tstream)
+            at = posixpath.normpath(target.at) if target.at else None
 
             with tarfile.open(fileobj=tf, mode="r|") as tin:
                 while True:
@@ -191,8 +214,16 @@ class TarGlobList(object):
                     if ti is None:
                         break
 
-                    ti.name = posixpath.join(target_prefix, ti.name)
-                    if self.matches(ti.name):
+                    tname = posixpath.join(target_prefix, ti.name)
+                    if self.matches(tname):
+                        if at:
+                            tname = posixpath.normpath(tname)
+                            if tname.startswith(at):
+                                tname = tname[len(at):]
+                            while tname.startswith("/"):
+                                tname = tname[1:]
+
+                        ti.name = tname
                         yield ti, tin.extractfile(ti) if ti.isreg() else None
 
     def __len__(self):
@@ -216,6 +247,7 @@ class TarGlob(object):
         self.value = None
         self._regex_pattern = None
         self._regex = None
+        self.at = None
 
         if isinstance(item, str):
             if item.startswith("glob:"):
@@ -230,6 +262,11 @@ class TarGlob(object):
                 self.value = item
         elif isinstance(item, dict):
             item = dict(item)
+
+            at = item.pop("at", None)
+            if at:
+                self.at = at
+
             for tfield, tval in self.DICT_TYPES.items():
                 value = item.pop(tfield, None)
                 if value is not None:
@@ -244,10 +281,15 @@ class TarGlob(object):
         else:
             raise TypeError("Expected str or dict")
 
+        # TODO: if value is relative, use work_dir if at is unset
+        if self.at is not None:
+            self.value = posixpath.join(self.at, self.value)
+
         if self.type == self.Type.REGEX:
             self._regex_pattern = self.value
         elif self.type == self.Type.GLOB:
             self._regex_pattern = "^" + fnmatch.translate(self.value)
+
         if self._regex_pattern is not None:
             self._regex = re.compile(self._regex_pattern)
 
