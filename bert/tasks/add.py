@@ -79,7 +79,7 @@ class TaskAdd(Task, name="add"):
                         tar.addfile(ti, fi)
             elif ti.isdir():
                 tar.addfile(ti)
-                for fn in sorted(os.listdir(path), reversed=True):
-                    paths.append((os.path.join(path, fn), posixpath.join(arcname, fn)))
+                for fn in sorted(os.listdir(path), reverse=True):
+                    paths.append((posixpath.join(arcname, fn), os.path.join(path, fn)))
             else:
                 tar.addfile(ti)
