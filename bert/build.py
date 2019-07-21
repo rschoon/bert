@@ -592,7 +592,7 @@ class BertStage(BertScope):
         super().put_vars(data)
 
 class BertBuild(BertScope):
-    def __init__(self, filename, shell_fail=False):
+    def __init__(self, filename, shell_fail=False, config=None):
         super().__init__(None)
 
         self.filename = filename
@@ -600,7 +600,10 @@ class BertBuild(BertScope):
         self.configs = []
         self.stages = []
         self.from_image_cache = {}
-        self._parse()
+        if config is not None:
+            self.load_config(config)
+        if self.filename is not None:
+            self._parse()
 
     def __repr__(self):
         return "BertBuild(%r)" % (self.filename, )
@@ -608,7 +611,9 @@ class BertBuild(BertScope):
     def _parse(self):
         with open(self.filename, "r") as f:
             config = from_yaml(f)
+        self.load_config(config)
 
+    def load_config(self, config):
         if not isinstance(config, dict):
             raise ConfigFailed(
                 "Unexpected type at top level, got {}, expected a mapping".format(get_yaml_type_name(config)),
