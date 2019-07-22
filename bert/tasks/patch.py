@@ -95,12 +95,12 @@ class PatchedFile(object):
         old_i = 0
         new_i = 0
 
-        for old, new, line in changes:
-            if old is not None and new is None:
-                del self.lines[adj+old-old_i+new_i]
+        for change in changes:
+            if change.old is not None and change.new is None:
+                del self.lines[adj+change.old-old_i+new_i]
                 old_i += 1
-            elif old is None and new is not None:
-                self.lines.insert(adj+new, (line, self.eol))
+            elif change.old is None and change.new is not None:
+                self.lines.insert(adj+change.new, (change.line, self.eol))
                 new_i += 1
 
 class Patch(object):

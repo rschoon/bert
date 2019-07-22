@@ -32,7 +32,7 @@ setup(
         'dockerpty',
         'jinja2',
         'requests',
-        'whatthepatch'
+        'whatthepatch>=0.0.6'
     ],
     extras_require = {
         'docs':  ["Sphinx"],
