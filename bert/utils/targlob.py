@@ -189,7 +189,8 @@ class TarGlobList(object):
         yield from _TargetTree(_TargetItem(item.static_prefix.path, item.at) for item in self)
 
     def matches(self, path):
-        path = pathlib.PurePosixPath(path)
+        if not isinstance(path, pathlib.PurePosixPath):
+            path = pathlib.PurePosixPath(path)
         while len(path.parts) > 1:
             for item in self:
                 if item.matches(str(path)):
@@ -197,33 +198,47 @@ class TarGlobList(object):
             path = pathlib.PurePosixPath(*path.parts[:-1])
         return False
 
+    def _rewrite_path(self, path, path_prefix, target_prefix):
+        path = pathlib.PurePosixPath(path)
+        try:
+            if path_prefix is not None:
+                path = path.relative_to(path_prefix)
+        except ValueError:
+            pass
+        return target_prefix / path
+
     def iter_container_files(self, container):
         for target in self.iter_targets():
-            if target.path.endswith("/"):
-                target_prefix = target.path
-            else:
-                target_prefix = posixpath.dirname(target.path)
-
             tstream, tstat = container.get_archive(target.path)
+
+            target_prefix = pathlib.PurePosixPath(target.path)
+            if not target.path.endswith("/"):
+                target_prefix = target_prefix.parent
+                path_prefix = None
+            else:
+                path_prefix = tstat['name']
+
             tf = utils.IOFromIterable(tstream)
             at = posixpath.normpath(target.at) if target.at else None
-
             with tarfile.open(fileobj=tf, mode="r|") as tin:
                 while True:
                     ti = tin.next()
                     if ti is None:
                         break
 
-                    tname = posixpath.join(target_prefix, ti.name)
+                    tname = self._rewrite_path(ti.name, path_prefix, target_prefix)
                     if self.matches(tname):
+                        str_tname = str(tname)
                         if at:
-                            tname = posixpath.normpath(tname)
-                            if tname.startswith(at):
-                                tname = tname[len(at):]
-                            while tname.startswith("/"):
-                                tname = tname[1:]
+                            if str_tname.startswith(at):
+                                str_tname = str_tname[len(at):]
+                            while str_tname.startswith("/"):
+                                str_tname = str_tname[1:]
 
-                        ti.name = tname
+                        if ti.islnk():
+                            ti.linkname = str(self._rewrite_path(ti.linkname, path_prefix, target_prefix))
+
+                        ti.name = str_tname
                         yield ti, tin.extractfile(ti) if ti.isreg() else None
 
     def __len__(self):
@@ -298,7 +313,14 @@ class TarGlob(object):
     def matches(self, path):
         if self._regex is not None:
             return self._regex.search(path)
-        return self.value == path
+        if self.value == path:
+            return True
+
+        str_path = str(path)
+        if self.value.endswith("/"):
+            return str_path.startswith(self.value)
+        else:
+            return str_path.startswith(self.value+"/")
 
     @property
     def static_prefix(self):
