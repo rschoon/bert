@@ -6,6 +6,13 @@ import os
 import re
 import struct
 
+def decode_bin(s, encoding=None):
+    if encoding is None:
+        encoding = "utf-8"
+    if encoding in ("bin", "binary", "bytes", "raw"):
+        return s
+    return s.decode(encoding)
+
 class open_output(object):
     def __init__(self, filename, mode="wb"):
         self._dirname = os.path.dirname(filename)

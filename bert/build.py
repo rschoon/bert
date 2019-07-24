@@ -1,14 +1,14 @@
 
 from collections import OrderedDict
-import click
 import docker
 import dockerpty
 import jinja2
 import json
 import os
 
+from .display import Display
 from .tasks import get_task
-from .utils import json_hash
+from .utils import json_hash, decode_bin
 from .yaml import from_yaml, preserve_yaml_mark, get_yaml_type_name
 from .exc import BuildFailed, ConfigFailed, TemplateFailed
 
@@ -76,14 +76,14 @@ def chain_configs(root):
     for c in _chain_configs(root):
         yield ConfigGroup(*c[:-1])
 
-def build_stages(configs, stages, shell_fail=False):
+def build_stages(configs, stages, display, shell_fail=False):
     saved_vars = {}
     for stage in stages:
         try:
-            job = stage.build(configs, vars=saved_vars)
+            job = stage.build(configs, display, vars=saved_vars)
         except BuildFailed as bf:
             if shell_fail and bf.job is not None and bf.rc != 0:
-                click.echo("Job failed, dropping into shell", err=True)
+                display.echo("Job failed, dropping into shell", err=True)
                 bf.job.resurrect_shell()
             raise
 
@@ -98,10 +98,12 @@ class BuildVars(dict):
             job.put_vars(self)
 
 class BertTask(object):
-    def __init__(self, action, value=None, name=None, env=None, when=None):
+    def __init__(self, action, value=None, name=None, env=None, when=None, capture=None, capture_encoding=None):
         self.name = name
         self.env = env
         self.when = when
+        self.capture = capture
+        self.capture_encoding = capture_encoding
         self._task = get_task(action, value)
 
     @classmethod
@@ -117,6 +119,8 @@ class BertTask(object):
         # other props
         env = taskinfo.pop("env", None)
         when = taskinfo.pop("when", None)
+        capture = taskinfo.pop("capture", None)
+        capture_encoding = taskinfo.pop("capture-encoding", "utf-8")
 
         if taskinfo:
             raise ConfigFailed(
@@ -125,7 +129,9 @@ class BertTask(object):
             )
 
         try:
-            return cls(action, name=name, value=value, env=env, when=when)
+            return cls(action,
+                       name=name, value=value, env=env, when=when,
+                       capture=capture, capture_encoding=capture_encoding)
         except ValueError as exc:
             raise ConfigFailed(str(exc), element=taskinfo)
 
@@ -152,11 +158,11 @@ class BertTask(object):
         return self.task_name
 
     def run(self, job):
-        click.echo(">>> Build: {}".format(self.display_name))
+        job.display.echo(">>> Build: {}".format(self.display_name))
 
         if self.when is not None:
             if not job.eval_expr(self.when):
-                click.echo("--- Skipped")
+                job.display.echo("--- Skipped")
                 return
 
         try:
@@ -189,12 +195,13 @@ class CurrentTask(object):
         return config.get("Cmd")
 
 class BuildJob(object):
-    def __init__(self, stage, configs, vars=None, work_dir=None):
+    def __init__(self, stage, configs, vars=None, work_dir=None, display=None):
         # XXX timeout is problematic
         self.docker_client = docker.from_env(timeout=600)
 
         self.tpl_env = jinja2.Environment(undefined=jinja2.StrictUndefined)
 
+        self.display = display
         self.stage = stage
         self.configs = configs
         self.changes = []
@@ -214,7 +221,7 @@ class BuildJob(object):
     def setup(self, image):
         self.src_image = image
 
-        click.echo(">>> Pulling: {}".format(self.src_image))
+        self.display.echo(">>> Pulling: {}".format(self.src_image))
         img = self.from_image_cache.get(self.src_image)
         if img is None:
             img = self.from_image_cache[self.src_image] = self.docker_client.images.pull(self.src_image)
@@ -253,13 +260,14 @@ class BuildJob(object):
             job_key
         ])
 
-        click.echo("--- Id: {}".format(key_id))
+        self.display.echo("--- Id: {}".format(key_id))
 
-        images = self.docker_client.images.list(filters={
-            'label': '{}={}'.format(LABEL_BUILD_ID, key_id)
-        }, all=True)
-        if images:
-            raise BuildImageExists(images[0])
+        if not self.current_task.task.capture:
+            images = self.docker_client.images.list(filters={
+                'label': '{}={}'.format(LABEL_BUILD_ID, key_id)
+            }, all=True)
+            if images:
+                raise BuildImageExists(images[0])
 
         image = self.src_image
         if isinstance(image, str):
@@ -274,9 +282,9 @@ class BuildJob(object):
             labels={LABEL_BUILD_ID: key_id},
             command=command,
             working_dir=work_dir,
-            stdin_open=True,
+            stdin_open=self.display.interactive,
             environment=["{}={}".format(*p) for p in env.items()],
-            tty=True
+            tty=self.display.interactive
         )
         return container
 
@@ -298,11 +306,16 @@ class BuildJob(object):
         if container is None:
             raise BuildFailed("Task Commit: No current container to commit", job=self)
 
+        watch_result = canceled = None
         if self.current_task.command is not None:
             try:
-                dockerpty.start(self.docker_client.api, container.id)
+                watch_result = self.display.watch_container(
+                    self.docker_client,
+                    container,
+                    self.current_task.task.capture
+                )
             except KeyboardInterrupt:
-                pass
+                canceled = True
 
             # If we were interrupted, we got here early and need to stop.
             # If not, we are stopped anyway.
@@ -312,6 +325,9 @@ class BuildJob(object):
             result = container.wait()
             if result['StatusCode'] != 0:
                 raise BuildFailed(rc=result['StatusCode'], job=self)
+
+            if canceled:
+                raise BuildFailed(rc=-1, job=self)
 
         changes = [
             "LABEL {}={}".format(LABEL_BUILD_ID, self.current_task.key_id)
@@ -330,11 +346,17 @@ class BuildJob(object):
             changes="\n".join(changes)
         )
 
+        if self.current_task.task.capture is not None:
+            self.set_var(
+                self.current_task.task.capture,
+                decode_bin(watch_result.stdout, self.current_task.task.capture_encoding)
+            )
+
         self.changes.append(image.id)
         self.src_image = image.id
         self.current_task = None
 
-        click.echo("--- New Image: {}".format(self.src_image))
+        self.display.echo("--- New Image: {}".format(self.src_image))
         self.cleanup()
 
     def resurrect_shell(self, container=None, env=None):
@@ -376,7 +398,7 @@ class BuildJob(object):
 
     def _commit_from_image(self, image):
         self.src_image = image.id
-        click.echo("--- Existing Image: {}".format(self.src_image))
+        self.display.echo("--- Existing Image: {}".format(self.src_image))
 
     def eval_expr(self, txt):
         expr = self.tpl_env.compile_expression(txt)
@@ -549,7 +571,7 @@ class BertStage(BertScope):
         for task in tasks:
             yield BertTask.create_from_dict(task)
 
-    def build(self, configs, vars=None):
+    def build(self, configs, display=None, vars=None):
         vars = dict(vars) if vars else {}
 
         if self.from_:
@@ -564,8 +586,8 @@ class BertStage(BertScope):
         if not images:
             raise ConfigFailed("Stage lacks images")
 
-        click.echo("### Stage: {}/{}".format(configs.name, self.name))
-        job = BuildJob(self, configs, vars=vars, work_dir=self.work_dir)
+        display.echo("### Stage: {}/{}".format(configs.name, self.name))
+        job = BuildJob(self, configs, vars=vars, work_dir=self.work_dir, display=display)
         for from_image in images:
             self._build_from(job, configs, from_image)
 
@@ -592,8 +614,13 @@ class BertStage(BertScope):
         super().put_vars(data)
 
 class BertBuild(BertScope):
-    def __init__(self, filename, shell_fail=False, config=None):
+    def __init__(self, filename, shell_fail=False, config=None, display=None):
         super().__init__(None)
+
+        if display is not None:
+            self.display = display
+        else:
+            self.display = Display()
 
         self.filename = filename
         self.shell_fail = shell_fail

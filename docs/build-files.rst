@@ -69,6 +69,9 @@ name                Name of job, must be first if provided.
 when                Condition which can control whether a job is skipped
 env                 Environment variables to pass to job run.  This only applies
                     to certain types of job.
+capture             Capture job output into a variable
+capture-encoding    When capturing output into a variable, the encoding to use.
+                    Defaults to utf-8.
 ==================  ==============================================================
 
 
