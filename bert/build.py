@@ -14,6 +14,10 @@ from .exc import BuildFailed, ConfigFailed, TemplateFailed
 
 LABEL_BUILD_ID = "bert.build_id"
 
+class BuildResult(object):
+    def __init__(self, vars=None):
+        self.vars = vars or {}
+
 class BuildImageExists(Exception):
     def __init__(self, image):
         self.image = image
@@ -89,6 +93,7 @@ def build_stages(configs, stages, display, shell_fail=False):
 
         saved_vars = job.saved_vars
         job.close()
+    return saved_vars
 
 class BuildVars(dict):
     def __init__(self, job=None):
@@ -682,5 +687,7 @@ class BertBuild(BertScope):
                 self.stages.append(stage)
 
     def build(self):
+        vars = {}
         for configs in chain_configs(self):
-            build_stages(configs, self.stages, shell_fail=self.shell_fail)
+            vars.update(build_stages(configs, self.stages, self.display, shell_fail=self.shell_fail))
+        return BuildResult(vars)
