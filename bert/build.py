@@ -80,8 +80,11 @@ def chain_configs(root):
     for c in _chain_configs(root):
         yield ConfigGroup(*c[:-1])
 
-def build_stages(configs, stages, display, shell_fail=False):
+def build_stages(configs, stages, display, shell_fail=False, vars=None):
     saved_vars = {}
+    if vars is not None:
+        saved_vars.update(vars)
+
     for stage in stages:
         try:
             job = stage.build(configs, display, vars=saved_vars)
@@ -686,8 +689,14 @@ class BertBuild(BertScope):
                 stage = BertStage(self, stage, name=stage_name)
                 self.stages.append(stage)
 
-    def build(self):
-        vars = {}
+     def build(self, vars={}):
+        output_vars = {}
         for configs in chain_configs(self):
-            vars.update(build_stages(configs, self.stages, self.display, shell_fail=self.shell_fail))
-        return BuildResult(vars)
+            output_vars.update(build_stages(
+                configs,
+                self.stages,
+                self.display,
+                shell_fail=self.shell_fail,
+                vars=vars
+            ))
+        return BuildResult(output_vars)
