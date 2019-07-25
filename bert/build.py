@@ -689,7 +689,7 @@ class BertBuild(BertScope):
                 stage = BertStage(self, stage, name=stage_name)
                 self.stages.append(stage)
 
-     def build(self, vars={}):
+    def build(self, vars={}):
         output_vars = {}
         for configs in chain_configs(self):
             output_vars.update(build_stages(
