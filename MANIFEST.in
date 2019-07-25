@@ -6,6 +6,10 @@ recursive-include ci *.py
 recursive-include tests *.py
 recursive-include tests/tasks/patch-data *.diff
 recursive-include tests/tasks/patch-data *.txt
+recursive-include functests *.py
+recursive-include functests *.txt
+recursive-include functests *.yml
+recursive-include functests *.sh
 recursive-include docs *.py
 recursive-include docs *.rst
 recursive-include . .keepme

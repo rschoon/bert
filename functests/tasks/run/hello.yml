@@ -1,0 +1,9 @@
+src:
+  from: debian:stable
+
+  tasks:
+    - run: echo Hello, World
+      capture: outp
+
+asserts:
+  - "assert result.vars['outp'] == 'Hello, World\\n'"

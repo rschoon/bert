@@ -1,0 +1,10 @@
+
+src:
+  from: debian:stable
+
+  tasks:
+    - script: file.sh
+      capture: outp
+
+asserts: |
+  assert result.vars['outp'] == 'heya world\n'

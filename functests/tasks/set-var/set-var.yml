@@ -1,0 +1,10 @@
+
+src:
+  from: debian:stable
+
+  tasks:
+    - set-var:
+        heya: there
+
+asserts: |
+  assert result.vars['heya'] == 'there'

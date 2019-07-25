@@ -1,0 +1,23 @@
+
+temp-dir: yes
+
+src:
+  from: debian:stable
+
+  tasks:
+    - script: 
+        contents: |
+          #!/bin/bash
+          echo "hellos worlds" > /tmp/hello
+    - export-file:
+        paths:
+          - at: /tmp
+            value: hello
+        dest: "{{functest_temp_dir}}/"
+
+asserts: |
+  import os
+
+  print(os.listdir(functest_temp_dir))
+  with open(os.path.join(functest_temp_dir, "hello")) as f:
+    assert f.read() == "hellos worlds\n"

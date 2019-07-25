@@ -1,0 +1,26 @@
+
+temp-dir: yes
+
+src:
+  from: debian:stable
+
+  tasks:
+    - script: 
+        contents: |
+          #!/bin/bash
+          mkdir /tmp/hello
+          echo "hellos worlds" > /tmp/hello/data
+    - export-tar:
+        paths:
+          - at: /tmp
+            value: hello
+        dest: "{{functest_temp_dir}}/tar.gz"
+    - import-tar:
+        src: "{{functest_temp_dir}}/tar.gz"
+        dest: /
+    - read-file:
+        path: /hello/data
+        var: output
+
+asserts: |
+  assert result.vars['output'] == 'hellos worlds'

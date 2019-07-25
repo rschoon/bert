@@ -1,0 +1,22 @@
+
+src:
+  from: debian:stable
+
+  tasks:
+    - run: echo -n hello-world
+      capture: out1
+    - run: echo -n hello-world2
+      capture: out2
+      capture-encoding: utf-8
+    - run: echo -n hello-world3
+      capture: out3
+      capture-encoding: bin
+    - run: echo -n hello-world4
+      capture: out4
+      capture-encoding: bytes
+
+asserts: |
+  assert result.vars['out1'] == 'hello-world'
+  assert result.vars['out2'] == 'hello-world2'
+  assert result.vars['out3'] == b'hello-world3'
+  assert result.vars['out4'] == b'hello-world4'
