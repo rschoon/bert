@@ -6,6 +6,8 @@ stages:
 
 variables:
   PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  BERT_FUNCTESTS: "1"
+  DOCKER_HOST: "tcp://docker:2375/"
 
 cache:
   key: ${CI_COMMIT_SHA}
@@ -20,12 +22,16 @@ lint:
 
 py36:
     image: python:3.6
+    services:
+        - docker:dind
     stage: test
     script:
         - ./ci/run-tests.sh py36
 
 py37:
     image: python:3.7
+    services:
+        - docker:dind
     stage: test
     script:
         - ./ci/run-tests.sh py37
