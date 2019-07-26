@@ -6,7 +6,7 @@ import tarfile
 import tempfile
 
 from . import Task, TaskVar
-from ..utils import expect_file_mode, IOHashWriter
+from ..utils import expect_file_mode, IOHashWriter, LocalPath
 
 class TaskAdd(Task, name="add"):
     """
@@ -14,12 +14,15 @@ class TaskAdd(Task, name="add"):
     """
 
     class Schema:
-        path = TaskVar('src', bare=True, help="Path to local file to add")
+        path = TaskVar('src', bare=True, help="Path to local file to add", type=LocalPath)
         dest = TaskVar('dest', help="Destination path of file")
         mode = TaskVar(type=expect_file_mode, help="The unix file mode to use for the tar file.")
         template = TaskVar(help="Treat added file as a template", default=False, type=bool)
 
     def run_with_values(self, job, path, dest, mode, template):
+        if hasattr(path, '__fspath__'):
+            path = path.__fspath__()
+
         job_args = {
             'value': path,
         }

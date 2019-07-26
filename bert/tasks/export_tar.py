@@ -4,7 +4,7 @@ import re
 import tarfile
 
 from . import Task, TaskVar
-from ..utils import TarGlobList, expect_file_mode, open_output
+from ..utils import TarGlobList, expect_file_mode, open_output, LocalPath
 
 RE_COMPRESS_EXT = re.compile(r'\.(bz2|xz|gz)$')
 
@@ -14,7 +14,7 @@ class TaskExportTar(Task, name="export-tar"):
     """
 
     class Schema:
-        dest = TaskVar(help="The destination filename for the tar file")
+        dest = TaskVar(help="The destination filename for the tar file", type=LocalPath)
         preamble = TaskVar(help="If provided, the tar file will contain this before the "
                            "actual tar contents.  This can be used to make a self extracting "
                            "runnable.")
@@ -28,6 +28,9 @@ class TaskExportTar(Task, name="export-tar"):
         paths = TaskVar(help="List of paths to include in tar file", type=TarGlobList)
 
     def run_with_values(self, job, *, dest, preamble, preamble_encoding, compress_type, mode, paths):
+        if hasattr(dest, "__fspath__"):
+            dest = dest.__fspath__()
+
         if os.path.exists(dest) and not job.changes:
             return
 

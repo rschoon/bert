@@ -247,6 +247,11 @@ class BuildJob(object):
         self.current_task = CurrentTask(task)
         task.run(self)
 
+    def resolve_path(self, path):
+        if os.path.isabs(path):
+            return path
+        return os.path.join(self.vars['bert_root_dir'], path)
+
     def create(self, job_key, command=None):
         if self.current_task is None:
             raise BuildFailed("Task Create: No current task")
@@ -471,11 +476,15 @@ class BertScope(object):
         self.parent_scope = parent_scope
         self.global_vars = {}
 
+    @property
+    def root_dir(self):
+        return self.parent_scope.root_dir
+
     def load_global_vars(self, config):
         include_vars = expect_list_or_none(config.pop("include-vars", None), str)
         if include_vars:
             for inc_fn in include_vars:
-                with open(inc_fn, "r") as f:
+                with open(os.path.join(self.root_dir, inc_fn), "r") as f:
                     self.global_vars.update(from_yaml(f))
 
         svars = config.pop('vars', None)
@@ -526,14 +535,14 @@ class BertConfig(BertScope):
             self.configs = None
 
     @classmethod
-    def create_from_list(cls, configs):
+    def create_from_list(cls, configs, parent_scope=None):
         if not isinstance(configs, list):
             raise ConfigFailed(
                 "Expect configs to be a list, but got {}".format(get_yaml_type_name(configs)),
                 element=configs
             )
 
-        return [BertConfig(confdata) for confdata in configs]
+        return [BertConfig(confdata, parent_scope) for confdata in configs]
 
     def put_vars(self, data):
         dv = data.get("config")
@@ -622,13 +631,20 @@ class BertStage(BertScope):
         super().put_vars(data)
 
 class BertBuild(BertScope):
-    def __init__(self, filename, shell_fail=False, config=None, display=None):
+    def __init__(self, filename, shell_fail=False, config=None, display=None, root_dir=None):
         super().__init__(None)
 
         if display is not None:
             self.display = display
         else:
             self.display = Display()
+
+        if root_dir is None:
+            if filename is not None:
+                root_dir = os.path.dirname(filename)
+            else:
+                root_dir = '.'
+        self._root_dir = root_dir
 
         self.filename = filename
         self.shell_fail = shell_fail
@@ -680,7 +696,7 @@ class BertBuild(BertScope):
                     configs[0][name] = config.pop(name)
                 except KeyError:
                     pass
-        self.configs = BertConfig.create_from_list(configs)
+        self.configs = BertConfig.create_from_list(configs, parent_scope=self)
 
         if tasks:
             self.stages.append(BertStage(self, {'tasks': tasks}, name='main'))
@@ -688,6 +704,14 @@ class BertBuild(BertScope):
             for stage_name, stage in stages.items():
                 stage = BertStage(self, stage, name=stage_name)
                 self.stages.append(stage)
+
+    @property
+    def root_dir(self):
+        return self._root_dir
+
+    def put_vars(self, data):
+        data['bert_root_dir'] = self.root_dir
+        super().put_vars(data)
 
     def build(self, vars={}):
         output_vars = {}

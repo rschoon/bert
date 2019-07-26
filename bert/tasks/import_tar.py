@@ -1,6 +1,6 @@
 
 from . import Task, TaskVar
-from ..utils import file_hash
+from ..utils import file_hash, LocalPath
 
 class TaskImportTar(Task, name="import-tar"):
     """
@@ -9,7 +9,7 @@ class TaskImportTar(Task, name="import-tar"):
 
     class Schema:
         dest = TaskVar(help="Destination path in image to unpack tar file to.")
-        src = TaskVar('path', bare=True, help="Local source path of tar file")
+        src = TaskVar('path', bare=True, help="Local source path of tar file", type=LocalPath)
 
     def run_with_values(self, job, *, src, dest):
         if dest is None:

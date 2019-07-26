@@ -9,7 +9,7 @@ import tempfile
 import whatthepatch
 
 from . import Task, TaskVar
-from ..utils import file_hash, IOFromIterable
+from ..utils import file_hash, IOFromIterable, LocalPath
 
 class PatchError(Exception):
     pass
@@ -231,7 +231,7 @@ class ContainerPatcher(object):
 
 class TaskPatch(Task, name="patch"):
     class Schema:
-        src = TaskVar('file', bare=True, help="Patch file to apply")
+        src = TaskVar('file', bare=True, help="Patch file to apply", type=LocalPath)
         chdir = TaskVar(default='/', help="Directory to apply patch from")
         strip_dir = TaskVar(default=0, help="Strip directory prefixes from patched filenames")
 

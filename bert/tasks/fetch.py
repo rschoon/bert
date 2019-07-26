@@ -5,6 +5,7 @@ import requests
 import tempfile
 
 from . import Task, TaskVar
+from ..utils import LocalPath
 
 class TaskFetch(Task, name="fetch"):
     """
@@ -19,7 +20,7 @@ class TaskFetch(Task, name="fetch"):
         json = TaskVar(default=False,
                        help="If set, destination variable will "
                        "be set with response converted from json")
-        dest = TaskVar(help="Destination file to put output in")
+        dest = TaskVar(help="Destination file to put output in", type=LocalPath)
 
     def run_with_values(self, job, url, params, method, dest_var, dest, **kwargs):
         is_json = kwargs.get("json")

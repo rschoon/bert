@@ -21,7 +21,7 @@ except ImportError:
     lzma = None
 
 from . import Task, TaskVar
-from ..utils import TarGlobList, open_output
+from ..utils import TarGlobList, open_output, LocalPath
 
 # This is derived from arch_canon entries in rpmrc
 # (We don't include the uname equiv portion)
@@ -328,11 +328,17 @@ class RPMBuild(object):
             self.name_full = "{0.name}-{0.version}-{0.release}".format(self)
 
         if dest:
+            if hasattr(dest, "__fspath__"):
+                dest = dest.__fspath__()
+
             if dest.endswith("/") or os.path.isdir(dest):
                 dest_dir = dest
                 dest = None
 
         if dest is None:
+            if hasattr(dest_dir, "__fspath__"):
+                dest_dir = dest_dir.__fspath__()
+
             self.dest = os.path.join(dest_dir, "{}.{}.rpm".format(self.name_full, self.arch))
         else:
             self.dest = dest
@@ -577,8 +583,8 @@ class TaskExportRpm(Task, name="export-rpm"):
         header = TaskVar(type=dict, help='Additional rpm fields to provide manually')
         compress_type = TaskVar(default="bzip2", help='The compression to use for the package contents')
         dest = TaskVar(help="The destination file name to use for the package.  If not provided "
-                       "it will be automatically be determined from the `dest_dir` and version values.")
-        dest_dir = TaskVar(default=".",
+                       "it will be automatically be determined from the `dest_dir` and version values.", type=LocalPath)
+        dest_dir = TaskVar(default=".", type=LocalPath,
                            help="The destination directory to put the package if dest "
                            "is not explicitly provided")
         paths = TaskVar(help="List of paths to include in package", type=TarGlobList)

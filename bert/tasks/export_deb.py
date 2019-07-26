@@ -4,7 +4,7 @@ import os
 import tarfile
 
 from . import Task, TaskVar
-from ..utils import TarGlobList, open_output
+from ..utils import TarGlobList, open_output, LocalPath
 
 class TaskExportDeb(Task, name="export-deb"):
     """
@@ -21,7 +21,7 @@ class TaskExportDeb(Task, name="export-deb"):
     )
 
     class Schema:
-        dest = TaskVar("name", help="Local destination filename for package")
+        dest = TaskVar("name", help="Local destination filename for package", type=LocalPath)
         paths = TaskVar(help="List of paths to include in package", type=TarGlobList)
         compress_type = TaskVar(default="xz", help="Compression to use for package")
         control = TaskVar(help="Control values for package, which is essentially the package metadata. "

@@ -163,5 +163,12 @@ class TaskVar(object):
     def handle(self, vals, job, value):
         value = job.template(value)
         if self.type is not None:
-            value = self.type(value)
+            if isinstance(self.type, type) and issubclass(self.type, JobContextType):
+                value = self.type(value, job)
+            else:
+                value = self.type(value)
         vals[self.name] = value
+
+class JobContextType(object):
+    def __init__(self, value, job):
+        raise NotImplementedError

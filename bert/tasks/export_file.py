@@ -4,7 +4,7 @@ import shutil
 import stat
 
 from . import Task, TaskVar
-from ..utils import TarGlobList
+from ..utils import TarGlobList, LocalPath
 
 def _makedev(path, ti):
     mode = ti.mode | (stat.S_IFBLK if ti.isblk() else stat.S_IFCHR)
@@ -27,10 +27,13 @@ def _setmeta(path, ti):
 class TaskExportFile(Task, name="export-file"):
 
     class Schema:
-        dest = TaskVar(help="Destination file name")
+        dest = TaskVar(help="Destination file name", type=LocalPath)
         paths = TaskVar('src', help="File or list of files to export", required=True, type=TarGlobList)
 
     def run_with_values(self, job, dest=None, paths=None):
+        if hasattr(dest, "__fspath__"):
+            dest = dest.__fspath__()
+
         if os.path.isfile(dest) and not job.changes:
             return
 

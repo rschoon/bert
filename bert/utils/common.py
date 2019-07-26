@@ -16,8 +16,8 @@ def decode_bin(s, encoding=None):
 class open_output(object):
     def __init__(self, filename, mode="wb"):
         self._dirname = os.path.dirname(filename)
-        self._tmpname = filename+".tmp"
-        self.filename = filename
+        self.filename = str(filename)
+        self._tmpname = self.filename+".tmp"
         self.mode = mode
         self._fileobj = None
 

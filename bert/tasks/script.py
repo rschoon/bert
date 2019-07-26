@@ -6,7 +6,7 @@ import tarfile
 import tempfile
 
 from . import Task, TaskVar
-from ..utils import file_hash, value_hash
+from ..utils import file_hash, value_hash, LocalPath
 
 class TaskScript(Task, name="script"):
     """
@@ -14,11 +14,13 @@ class TaskScript(Task, name="script"):
     """
 
     class Schema:
-        script = TaskVar(bare=True, help="Script to push to container and run")
+        script = TaskVar(bare=True, help="Script to push to container and run", type=LocalPath)
         contents = TaskVar(help="Script contents to push to container and run")
         template = TaskVar(help="Treat script file via `script` as a template", default=False, type=bool)
 
     def run_with_values(self, job, *, script, contents, template):
+        if hasattr(script, "__fspath__"):
+            script = script.__fspath__()
         if isinstance(script, str):
             script = shlex.split(script)
         if not script and not contents and not template:
