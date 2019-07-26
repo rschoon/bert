@@ -1,0 +1,35 @@
+
+temp-dir: yes
+
+src:
+  from: debian:stable
+
+  tasks:
+    - script: 
+        contents: |
+          #!/bin/bash
+          mkdir /tmp/hello
+          echo "hellos worlds" > /tmp/hello/data
+    - export-tar:
+        paths:
+          - value: data
+            at: /tmp/hello
+        preamble: |+
+          #!/bin/sh
+          mkdir -p /usr/local
+          sed -e '1,/^exit$/d' "$0" | tar -C /usr/local -xzvf -
+          exit
+
+        mode: 0755
+        compress-type: gz
+        dest: "{{functest_temp_dir}}/extract.run"
+    - add:
+        src: "{{functest_temp_dir}}/extract.run"
+        dest: /tmp/
+    - run: /tmp/extract.run
+    - read-file: 
+        var: greeting
+        path: /usr/local/data
+
+asserts: |
+  assert result.vars['greeting'] == 'hellos worlds'

@@ -1,0 +1,25 @@
+
+temp-dir: yes
+
+src:
+  from: debian:stable
+
+  tasks:
+    - script: 
+        contents: |
+          #!/bin/bash
+          echo "hellos worlds" > /tmp/hello
+    - export-tar:
+        paths:
+          - at: /tmp/
+            value: hello
+        dest: "{{functest_temp_dir}}/tar.gz"
+
+asserts: |
+  import os
+  import tarfile
+
+  with tarfile.open(os.path.join(functest_temp_dir, "tar.gz")) as t:
+    ti = t.next()
+    assert ti.name == "hello"
+    assert t.extractfile(ti).read() == b"hellos worlds\n"

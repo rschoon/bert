@@ -1,0 +1,13 @@
+
+src:
+  from: debian:stable
+
+  tasks:
+    - script:
+        contents: |
+          #!/bin/sh
+          echo hello, there
+      capture: outp
+
+asserts: |
+  assert result.vars['outp'] == 'hello, there\n'

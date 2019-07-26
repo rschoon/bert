@@ -1,0 +1,12 @@
+
+src:
+  from: debian:stable
+
+  tasks:
+    - add: ./example.txt
+    - read-file:
+        path: ./example.txt
+        var: example
+
+asserts:
+  - "assert result.vars['example'] == 'hello,\\nworld'"
