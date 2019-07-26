@@ -60,7 +60,7 @@ def find_tests():
     root = os.path.dirname(__file__)
     for path, dirs, files in os.walk(root):
         for f in files:
-            if f.endswith(".yml"):
+            if f.endswith(".yml") and f[0] not in ("_", "."):
                 fn = os.path.join(path, f)
                 with open(fn) as fo:
                     yield Config(fn[len(root)+1:], fn, from_yaml(fo))

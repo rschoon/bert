@@ -1,0 +1,9 @@
+
+src:
+  from: debian:stable
+
+  tasks:
+    - include-vars: _vars.yml
+
+asserts: |
+  assert result.vars['fruit'] == 'apples'
