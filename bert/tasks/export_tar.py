@@ -6,7 +6,7 @@ import tarfile
 from . import Task, TaskVar
 from ..utils import TarGlobList, expect_file_mode, open_output
 
-RE_TAR_EXT = re.compile(r'\.tar\.(bz2|xz|gz)$')
+RE_COMPRESS_EXT = re.compile(r'\.(bz2|xz|gz)$')
 
 class TaskExportTar(Task, name="export-tar"):
     """
@@ -32,7 +32,7 @@ class TaskExportTar(Task, name="export-tar"):
             return
 
         if compress_type is None:
-            m = RE_TAR_EXT.match(dest)
+            m = RE_COMPRESS_EXT.search(dest)
             if m:
                 compress_type = m.group(1)
         if not compress_type:
