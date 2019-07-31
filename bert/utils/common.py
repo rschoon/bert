@@ -80,6 +80,7 @@ def _file_hash(name, filename, chunk_size=2**16):
     return h, sz
 
 def file_hash(name, filename):
+    filename = os.fspath(filename)
     if os.path.isfile(filename):
         h, _ = _file_hash(name, filename)
         return h.hexdigest()
