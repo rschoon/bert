@@ -187,8 +187,11 @@ class ContainerPatcher(object):
     def cleanup(self):
         self.tempdir.cleanup()
 
-    def _copy_file(self, fn):
-        tstream, tstat = self.container.get_archive(fn)
+    def _load_file(self, fn):
+        if not os.path.isabs(fn):
+            load_fn = os.path.join(self.chdir, fn)
+
+        tstream, tstat = self.container.get_archive(load_fn)
         tf = IOFromIterable(tstream)
 
         with tarfile.open(fileobj=tf, mode="r|") as tin:
@@ -209,6 +212,7 @@ class ContainerPatcher(object):
                     self.files[fn] = None
 
     def apply_patch(self, fn):
+        fn = os.fspath(fn)
         with open(fn) as f:
             p = Patch(f.read(), strip_dir=self.strip_dir)
 
@@ -221,6 +225,8 @@ class ContainerPatcher(object):
         with tempfile.TemporaryFile() as tf:
             with tarfile.open(fileobj=tf, mode="w") as tar:
                 for fn, fp in self.files.items():
+                    if not os.path.isabs(fn):
+                        fn = os.path.join(self.chdir, fn)
                     tar.add(fp, arcname=fn)
             tf.seek(0)
 
