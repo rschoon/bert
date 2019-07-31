@@ -1,0 +1,31 @@
+
+files:
+  patch.diff: |
+    --- subdir/example2.txt	2019-07-30 19:00:50.160501827 -0600
+    +++ subdir/example2.txt	2019-07-30 19:01:59.683664788 -0600
+    @@ -7,6 +7,7 @@
+     JGQcZmr7fWwyEeh5H7BjOYMivVhSiUlv
+     GUB-nAmgXnoqRFnUR5WVNvQk_k027UsO
+     2gbBih_Jw6D7a7m3l-Rg74m7lhT4kVCU
+    +AvBZq-mMpbvx4RjSCFWQqMbdoyHqOLFF
+     LH3o9zStnUny2qiWNOBJ5oNtQ5LcP8c1
+     wx3dEFnmDKWGpuxfzCIbGQAB9QupioVK
+     -nU1AUR5ol7Dii_3SPNNsajzrB9NW3Hc
+
+src:
+  from: debian:stable
+
+  tasks:
+    - add:
+        src: input
+        dest: /test
+    - patch:
+        src: "{{functest_temp_dir}}/patch.diff"
+        strip-dir: 0
+        chdir: "/test"
+    - read-file:
+        path: /test/subdir/example2.txt
+        var: data
+
+asserts: |
+  assert "2gbBih_Jw6D7a7m3l-Rg74m7lhT4kVCU\nAvBZq-mMpbvx4RjSCFWQqMbdoyHqOLFF\nLH3o9zStnUny2qiWNOBJ5oNtQ5LcP8c1" in result.vars["data"]

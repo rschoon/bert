@@ -38,6 +38,10 @@ class Config(object):
         return [ConfigAssert(asserts)]
 
     @property
+    def files(self):
+        return self.data.get("files", ())
+
+    @property
     def root_dir(self):
         return os.path.dirname(self.filename)
 
@@ -72,11 +76,16 @@ def test_config(tconfig):
     td = None
     vars = {}
 
-    if tconfig.temp_dir:
-        td = tempfile.TemporaryDirectory()
-        vars['functest_temp_dir'] = td.name
-
     try:
+        if tconfig.temp_dir or tconfig.files:
+            td = tempfile.TemporaryDirectory()
+            vars['functest_temp_dir'] = td.name
+
+        if tconfig.files:
+            for fin, fic in tconfig.files.items():
+                with open(os.path.join(td.name, fin), "w") as f:
+                    f.write(fic)
+
         b = BertBuild(None, config=tconfig.config, display=display, root_dir=tconfig.root_dir)
         result = b.build(vars=vars)
 
