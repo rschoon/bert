@@ -18,12 +18,12 @@ def read_version(filename):
     return version
 
 setup(
-    name = 'bert',
+    name = 'bert-build',
     version = read_version('bert/__init__.py'),
     description = "Build things",
     author = 'Robin Schoonover',
     author_email = 'robin@cornhooves.org',
-    url = 'https://git.cornhooves.org/rschoon/bert',
+    url = 'https://git.cornhooves.org/build-tools/bert',
     packages = find_packages('.'),
     install_requires = [
         'click>=5.0',
@@ -41,6 +41,15 @@ setup(
         'console_scripts' : [
             "bert=bert:cli",
         ]
-    }
+    },
+    classifiers=[
+        'Development Status :: 3 - Alpha',
+        'Topic :: Software Development :: Build Tools',
+        'Environment :: Console',
+        'License :: OSI Approved :: MIT License',
+        'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
+    ],
 )
 
