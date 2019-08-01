@@ -4,12 +4,14 @@ exclude docs/_*.rst
 recursive-include ci *.sh
 recursive-include ci *.py
 recursive-include tests *.py
+recursive-include tests *.rst
 recursive-include tests/tasks/patch-data *.diff
 recursive-include tests/tasks/patch-data *.txt
 recursive-include functests *.py
 recursive-include functests *.txt
 recursive-include functests *.yml
 recursive-include functests *.sh
+recursive-include functests *.rst
 recursive-include docs *.py
 recursive-include docs *.rst
 recursive-include . .keepme
