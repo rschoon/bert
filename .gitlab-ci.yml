@@ -28,6 +28,14 @@ py36:
     script:
         - ./ci/run-tests.sh py36
 
+pypy3.6-7:
+    image: pypy:3.6-7
+    services:
+        - docker:dind
+    stage: test
+    script:
+        - ./ci/run-tests.sh pypy3
+
 py37:
     image: python:3.7
     services:
