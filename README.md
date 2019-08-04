@@ -21,7 +21,7 @@ Installing
 
 From checkout, use pip: `pip install --user .`
 
-Bert may appear on pypi in the future.
+Bert can also be installed from PyPI: `pip install --user bert-build`
 
 Usage
 -----
