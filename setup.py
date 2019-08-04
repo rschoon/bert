@@ -24,6 +24,8 @@ setup(
     author = 'Robin Schoonover',
     author_email = 'robin@cornhooves.org',
     url = 'https://git.cornhooves.org/build-tools/bert',
+    long_description=read("README.md"),
+    long_description_content_type='text/markdown',
     packages = find_packages('.'),
     install_requires = [
         'click>=5.0',
