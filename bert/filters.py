@@ -31,7 +31,7 @@ def basename(path):
 
 @register_filter
 def dict2items(d):
-    return [{'key' : k, 'value' : v} for k,v in d.items()]
+    return [{'key': k, 'value': v} for k, v in d.items()]
 
 def _items2dict(item):
     if isinstance(item, dict):
@@ -56,7 +56,7 @@ def combine(*dicts, recursive=False):
     rv = {}
     for d in dicts:
         if recursive:
-            for k,v in d.items():
+            for k, v in d.items():
                 if isinstance(rv.get(k), dict) and isinstance(v, dict):
                     rv[k] = dict(rv[k])
                     rv[k].update(v)
@@ -76,7 +76,7 @@ def _regex(regex, multiline=False, ignorecase=False):
 
 @register_filter
 def regex_search(s, regex, default="", **kwargs):
-    m  = _regex(regex, **kwargs).search(s)
+    m = _regex(regex, **kwargs).search(s)
     if m is None:
         return default
     try:
