@@ -7,6 +7,7 @@ import json
 import os
 
 from .display import Display
+from .filters import setup_filters
 from .tasks import get_task
 from .utils import json_hash, decode_bin
 from .yaml import from_yaml, preserve_yaml_mark, get_yaml_type_name
@@ -208,6 +209,7 @@ class BuildJob(object):
         self.docker_client = docker.from_env(timeout=600)
 
         self.tpl_env = jinja2.Environment(undefined=jinja2.StrictUndefined)
+        setup_filters(self.tpl_env)
 
         self.display = display
         self.stage = stage

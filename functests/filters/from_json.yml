@@ -1,0 +1,13 @@
+
+src:
+  from: debian:stable
+
+  tasks:
+    - set-var:
+        value: "[1, 2, 3]"
+    - set-var:
+        out1: "{% for i in value|from_json %}{{i}}{% endfor %}"
+
+
+asserts: |
+  assert result.vars['out1'] == "123"

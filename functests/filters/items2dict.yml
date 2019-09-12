@@ -1,0 +1,13 @@
+src:
+  from: debian:stable
+
+  tasks:
+    - set-var:
+        d:
+          - [ a, b ]
+          - [ c, d ]
+    - run: echo -n {% for item in d|items2dict %}{{item}}{% endfor %}
+      capture: out1
+
+asserts: |
+  assert result.vars['out1'] == 'ac'

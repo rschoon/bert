@@ -1,0 +1,17 @@
+src:
+  from: debian:stable
+
+  tasks:
+    - set-var:
+        out1: "{{'test'|regex_search('te')}}"
+        out2: "{{'test'|regex_search('tf')}}"
+        out3: "{{'test'|regex_search('tf', default='k')}}"
+        out4: "{{'test'|regex_search('t(es)')}}"
+        out5: "{{'test'|regex_search('e.')}}"
+
+asserts: |
+  assert result.vars['out1'] == 'te'
+  assert result.vars['out2'] == ''
+  assert result.vars['out3'] == 'k'
+  assert result.vars['out4'] == 'es'
+  assert result.vars['out5'] == 'es'

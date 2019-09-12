@@ -1,0 +1,16 @@
+
+src:
+  from: debian:stable
+
+  tasks:
+    - set-var:
+        p1: /here/we/are
+        p2: /here/
+    - run: echo -n {{p1|dirname}}
+      capture: out1
+    - run: echo -n {{p2|dirname}}
+      capture: out2
+
+asserts: |
+  assert result.vars['out1'] == '/here/we'
+  assert result.vars['out2'] == '/here'

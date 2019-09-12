@@ -1,0 +1,34 @@
+
+src:
+  from: debian:stable
+
+  tasks:
+    - set-var:
+        d:
+          a: b
+          e:
+            f: g
+            h: i
+        inp1:
+          a: z
+          e: f
+        inp2:
+          a: z
+          e:
+            f: y
+        inp3:
+          a:
+            k: j
+    - set-var:
+        out1: "{{d|combine(inp1,recursive=True)|to_json}}"
+        out2: "{{d|combine(inp2,recursive=True)|to_json}}"
+        out2no: "{{d|combine(inp2)|to_json}}"
+        out3: "{{d|combine(inp3,recursive=True)|to_json}}"
+
+asserts: |
+  import json
+
+  assert json.loads(result.vars['out1']) == {'a': 'z', 'e': 'f'}
+  assert json.loads(result.vars['out2']) == {'a': 'z', 'e': {'f': 'y', 'h' : 'i' }}
+  assert json.loads(result.vars['out2no']) == {'a': 'z', 'e': {'f': 'y'}}
+  assert json.loads(result.vars['out3']) == {'a': {'k': 'j'}, 'e': {'f': 'g', 'h': 'i'}}

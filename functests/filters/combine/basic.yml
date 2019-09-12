@@ -1,0 +1,23 @@
+
+src:
+  from: debian:stable
+
+  tasks:
+    - set-var:
+        d:
+          a: b
+          c: d
+          e:
+            f: g
+            h: i
+        inp1:
+          a: z
+          e: f
+        inp2:
+          a: k
+    - run: test -z "{% if (d|combine(inp1)).a != "z" %}1{% endif %}"
+    - run: test -z "{% if (d|combine(inp1)).e != "f" %}1{% endif %}"
+    - run: test -z "{% if (d|combine(inp1, inp2)).a != "k" %}1{% endif %}"
+    - run: test -z "{% if (d|combine(inp1, inp2)).e != "f" %}1{% endif %}"
+
+asserts: ""

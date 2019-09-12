@@ -1,0 +1,10 @@
+
+src:
+  from: debian:stable
+
+  tasks:
+    - set-var:
+        out1: '{{"a,b,c,d"|regex_replace("[^,]+","1")}}'
+
+asserts: |
+  assert result.vars['out1'] == "1,1,1,1"
