@@ -104,7 +104,7 @@ class BuildVars(dict):
         super().__init__(env=os.environ)
 
         if job:
-            job.put_vars(self)
+            job.put_global_vars(self)
 
 class BertTask(object):
     def __init__(self, action, value=None, name=None, env=None, when=None, capture=None, capture_encoding=None):
@@ -443,11 +443,11 @@ class BuildJob(object):
     def set_var(self, name, value):
         self.vars[name] = self.saved_vars[name] = value
 
-    def put_vars(self, data):
+    def put_global_vars(self, data):
         for conf in self.configs:
-            conf.put_vars(data)
+            conf.put_global_vars(data)
         if self.stage:
-            self.stage.put_vars(data)
+            self.stage.put_global_vars(data)
         data.update(self.saved_vars)
 
     def cleanup(self):
@@ -482,6 +482,9 @@ class BertScope(object):
     def root_dir(self):
         return self.parent_scope.root_dir
 
+    def make_child_name(self, name):
+        return name
+
     def load_global_vars(self, config):
         include_vars = expect_list_or_none(config.pop("include-vars", None), str)
         if include_vars:
@@ -499,12 +502,16 @@ class BertScope(object):
                     element=svars
                 )
 
-    def put_vars(self, data):
+    def put_global_vars(self, data):
         if self.parent_scope is not None:
-            self.parent_scope.put_vars(data)
+            self.parent_scope.put_global_vars(data)
         data.update(self.global_vars)
 
-class BertConfig(BertScope):
+class BertChildScope(BertScope):
+    def make_child_name(self, name):
+        return "{}.{}".format(self.name, name)
+
+class BertConfig(BertChildScope):
     def __init__(self, data, parent=None):
         super().__init__(parent)
 
@@ -518,12 +525,16 @@ class BertConfig(BertScope):
         self.load_global_vars(data)
 
         try:
-            self.name = data.pop('name')
+            self.short_name = data.pop('name')
         except KeyError:
             raise ConfigFailed(
                 "Config is missing required field name",
                 element=data
             )
+
+        self.name = self.short_name
+        if parent is not None:
+            self.name = parent.make_child_name(self.name)
 
         try:
             self.images = expect_list(data.pop("from"), str)
@@ -546,16 +557,21 @@ class BertConfig(BertScope):
 
         return [BertConfig(confdata, parent_scope) for confdata in configs]
 
-    def put_vars(self, data):
-        dv = data.get("config")
-        if dv is None:
-            dv = data["config"] = {"name": self.name}
-        else:
-            dv["name"] = "{}.{}".format(dv["name"], self.name)
-        dv['images'] = self.images
-        super().put_vars(data)
+    def make_child_name(self, name):
+        return "{}.{}".format(self.name, name)
 
-class BertStage(BertScope):
+    def put_global_vars(self, data):
+        data['config'] = self.get_self_vars()
+        super().put_global_vars(data)
+
+    def get_self_vars(self):
+        return {
+            'name': self.name,
+            'short_name': self.short_name,
+            'source_images': self.images
+        }
+
+class BertStage(BertChildScope):
     def __init__(self, parent, data, name=None):
         super().__init__(parent)
 
@@ -567,7 +583,10 @@ class BertStage(BertScope):
 
         data = copy_dict(data)
 
-        self.name = name
+        self.name = self.short_name = name
+        if parent is not None:
+            self.name = parent.make_child_name(self.name)
+
         self.build_tag = data.pop("build-tag", None)
         self.work_dir = data.pop("work-dir", None)
         try:
@@ -624,13 +643,16 @@ class BertStage(BertScope):
         finally:
             job.close()
 
-    def put_vars(self, data):
-        if "stage" not in data:
-            data["stage"] = {
-                'name': self.name,
-                'images': self.from_
-            }
-        super().put_vars(data)
+    def put_global_vars(self, data):
+        data['stage'] = self.get_self_vars()
+        super().put_global_vars(data)
+
+    def get_self_vars(self):
+        return {
+            'name': self.name,
+            'short_name': self.short_name,
+            'source_images': self.from_
+        }
 
 class BertBuild(BertScope):
     def __init__(self, filename, shell_fail=False, config=None, display=None, root_dir=None):
@@ -711,18 +733,18 @@ class BertBuild(BertScope):
     def root_dir(self):
         return self._root_dir
 
-    def put_vars(self, data):
+    def put_global_vars(self, data):
         data['bert_root_dir'] = self.root_dir
-        super().put_vars(data)
+        super().put_global_vars(data)
 
     def build(self, vars={}):
-        output_vars = {}
+        output_global_vars = {}
         for configs in chain_configs(self):
-            output_vars.update(build_stages(
+            output_global_vars.update(build_stages(
                 configs,
                 self.stages,
                 self.display,
                 shell_fail=self.shell_fail,
                 vars=vars
             ))
-        return BuildResult(output_vars)
+        return BuildResult(output_global_vars)
