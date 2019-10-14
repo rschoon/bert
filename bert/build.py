@@ -2,6 +2,8 @@
 from collections import OrderedDict
 import docker
 import dockerpty
+import io
+import posixpath
 import jinja2
 import json
 import os
@@ -253,6 +255,39 @@ class BuildJob(object):
         if os.path.isabs(path):
             return path
         return os.path.join(self.vars['bert_root_dir'], path)
+
+    def tarfile_add(self, tf, srcname, arcname=None, recursive=True, template=False, template_encoding='utf-8', mode=None):
+        if arcname is None:
+            arcname = srcname
+        paths = [(arcname, srcname)]
+
+        while True:
+            try:
+                arcname, srcname = paths.pop()
+            except IndexError:
+                break
+
+            ti = tf.gettarinfo(srcname, arcname)
+
+            if mode is not None:
+                ti.mode = (ti.mode & ~0o777) | mode
+
+            if ti.isreg():
+                if template:
+                    with open(srcname, "r", encoding=template_encoding) as fi:
+                        content = self.template(fi.read()).encode(template_encoding)
+                        ti.size = len(content)
+                        tf.addfile(ti, io.BytesIO(content))
+                else:
+                    with open(srcname, "rb") as fi:
+                        tf.addfile(ti, fi)
+            elif ti.isdir():
+                tf.addfile(ti)
+                if recursive:
+                    for fn in sorted(os.listdir(srcname)):
+                        paths.append((posixpath.join(arcname, fn), os.path.join(srcname, fn)))
+            else:
+                tf.addfile(ti)
 
     def create(self, job_key, command=None):
         if self.current_task is None:
