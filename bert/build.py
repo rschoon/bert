@@ -109,9 +109,11 @@ class BuildVars(dict):
             job.put_global_vars(self)
 
 class BertTask(object):
-    def __init__(self, action, value=None, name=None, env=None, when=None, capture=None, capture_encoding=None):
+    def __init__(self, action, value=None, name=None, env=None, when=None, capture=None, capture_encoding=None, user=None, groups=None):
         self.name = name
         self.env = env
+        self.user = user
+        self.groups = groups
         self.when = when
         self.capture = capture
         self.capture_encoding = capture_encoding
@@ -130,8 +132,16 @@ class BertTask(object):
         # other props
         env = taskinfo.pop("env", None)
         when = taskinfo.pop("when", None)
+        user = taskinfo.pop("user", None)
+        group = taskinfo.pop("group", None)
+        groups = taskinfo.pop("groups", None)
         capture = taskinfo.pop("capture", None)
         capture_encoding = taskinfo.pop("capture-encoding", "utf-8")
+
+        if groups is not None and group is not None:
+            groups.insert(0, group)
+        elif group is not None:
+            groups = [group]
 
         if taskinfo:
             raise ConfigFailed(
@@ -142,6 +152,7 @@ class BertTask(object):
         try:
             return cls(action,
                        name=name, value=value, env=env, when=when,
+                       user=user, groups=groups,
                        capture=capture, capture_encoding=capture_encoding)
         except ValueError as exc:
             raise ConfigFailed(str(exc), element=taskinfo)
@@ -332,6 +343,8 @@ class BuildJob(object):
             labels={LABEL_BUILD_ID: key_id},
             command=command,
             working_dir=work_dir,
+            user=self.current_task.task.user,
+            group_add=self.current_task.task.groups,
             stdin_open=self.display.interactive,
             environment=["{}={}".format(*p) for p in env.items()],
             tty=self.display.interactive

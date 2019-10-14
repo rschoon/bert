@@ -72,6 +72,11 @@ env                 Environment variables to pass to job run.  This only applies
 capture             Capture job output into a variable
 capture-encoding    When capturing output into a variable, the encoding to use.
                     Defaults to utf-8.
+user                For tasks that involve running commands, the user to run the
+                    command as.
+groups              For tasks that involve running commands, a list of groups to
+                    run the command as.  `group` is an alias accepting only
+                    a single group.
 ==================  ==============================================================
 
 
