@@ -1,0 +1,19 @@
+
+src:
+  from: debian:stable
+
+  tasks:
+    - run: id -u
+      user: root
+      capture: out_root
+    - run: id -u
+      user: daemon
+      capture: out_daemon
+    - run: id -u
+      user: 1
+      capture: out_1
+
+asserts: |
+  assert result.vars['out_root'] == '0\n'
+  assert result.vars['out_daemon'] == '1\n'
+  assert result.vars['out_1'] == '1\n'

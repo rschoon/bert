@@ -2,6 +2,8 @@
 from collections import OrderedDict
 import docker
 import dockerpty
+import io
+import posixpath
 import jinja2
 import json
 import os
@@ -107,9 +109,11 @@ class BuildVars(dict):
             job.put_global_vars(self)
 
 class BertTask(object):
-    def __init__(self, action, value=None, name=None, env=None, when=None, capture=None, capture_encoding=None):
+    def __init__(self, action, value=None, name=None, env=None, when=None, capture=None, capture_encoding=None, user=None, groups=None):
         self.name = name
         self.env = env
+        self.user = user
+        self.groups = groups
         self.when = when
         self.capture = capture
         self.capture_encoding = capture_encoding
@@ -128,8 +132,16 @@ class BertTask(object):
         # other props
         env = taskinfo.pop("env", None)
         when = taskinfo.pop("when", None)
+        user = taskinfo.pop("user", None)
+        group = taskinfo.pop("group", None)
+        groups = taskinfo.pop("groups", None)
         capture = taskinfo.pop("capture", None)
         capture_encoding = taskinfo.pop("capture-encoding", "utf-8")
+
+        if groups is not None and group is not None:
+            groups.insert(0, group)
+        elif group is not None:
+            groups = [group]
 
         if taskinfo:
             raise ConfigFailed(
@@ -140,6 +152,7 @@ class BertTask(object):
         try:
             return cls(action,
                        name=name, value=value, env=env, when=when,
+                       user=user, groups=groups,
                        capture=capture, capture_encoding=capture_encoding)
         except ValueError as exc:
             raise ConfigFailed(str(exc), element=taskinfo)
@@ -254,6 +267,39 @@ class BuildJob(object):
             return path
         return os.path.join(self.vars['bert_root_dir'], path)
 
+    def tarfile_add(self, tf, srcname, arcname=None, recursive=True, template=False, template_encoding='utf-8', mode=None):
+        if arcname is None:
+            arcname = srcname
+        paths = [(arcname, srcname)]
+
+        while True:
+            try:
+                arcname, srcname = paths.pop()
+            except IndexError:
+                break
+
+            ti = tf.gettarinfo(srcname, arcname)
+
+            if mode is not None:
+                ti.mode = (ti.mode & ~0o777) | mode
+
+            if ti.isreg():
+                if template:
+                    with open(srcname, "r", encoding=template_encoding) as fi:
+                        content = self.template(fi.read()).encode(template_encoding)
+                        ti.size = len(content)
+                        tf.addfile(ti, io.BytesIO(content))
+                else:
+                    with open(srcname, "rb") as fi:
+                        tf.addfile(ti, fi)
+            elif ti.isdir():
+                tf.addfile(ti)
+                if recursive:
+                    for fn in sorted(os.listdir(srcname)):
+                        paths.append((posixpath.join(arcname, fn), os.path.join(srcname, fn)))
+            else:
+                tf.addfile(ti)
+
     def create(self, job_key, command=None):
         if self.current_task is None:
             raise BuildFailed("Task Create: No current task")
@@ -297,6 +343,8 @@ class BuildJob(object):
             labels={LABEL_BUILD_ID: key_id},
             command=command,
             working_dir=work_dir,
+            user=self.current_task.task.user,
+            group_add=self.current_task.task.groups,
             stdin_open=self.display.interactive,
             environment=["{}={}".format(*p) for p in env.items()],
             tty=self.display.interactive

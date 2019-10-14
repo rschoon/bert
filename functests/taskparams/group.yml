@@ -1,0 +1,19 @@
+
+src:
+  from: debian:stable
+
+  tasks:
+    - run: id -G
+      group: root
+      capture: out_root
+    - run: id -G
+      group: daemon
+      capture: out_daemon
+    - run: id -G
+      group: 1
+      capture: out_1
+
+asserts: |
+  assert '0' in result.vars['out_root'].rstrip().split(" ")
+  assert '1' in result.vars['out_daemon'].rstrip().split(" ")
+  assert '1' in result.vars['out_1'].rstrip().split(" ")

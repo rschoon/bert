@@ -36,7 +36,7 @@ class GitRun(object):
 
         with tempfile.TemporaryFile() as tf:
             with tarfile.open(fileobj=tf, mode="w") as tar:
-                tar.add(self.src_path, arcname=self.path)
+                self.job.tarfile_add(tar, self.src_path, arcname=self.path)
             tf.seek(0)
 
             container.put_archive(
