@@ -10,10 +10,16 @@ src:
       user: daemon
       capture: out_daemon
     - run: id -u
+      capture: out_root2
+    - run: id -u
       user: 1
       capture: out_1
+    - run: id -u
+      capture: out_root3
 
 asserts: |
   assert result.vars['out_root'] == '0\n'
   assert result.vars['out_daemon'] == '1\n'
   assert result.vars['out_1'] == '1\n'
+  assert result.vars['out_root2'] == '0\n'
+  assert result.vars['out_root3'] == '0\n'

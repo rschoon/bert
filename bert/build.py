@@ -1,5 +1,6 @@
 
 from collections import OrderedDict
+import copy
 import docker
 import dockerpty
 import io
@@ -48,6 +49,9 @@ def expect_list_or_none(val, subtype=None):
 
 def copy_dict(val):
     return preserve_yaml_mark(OrderedDict(val), val)
+
+def _make_environ_dict(envlist):
+    return dict(e.split("=", 1) for e in envlist)
 
 #
 #
@@ -392,21 +396,28 @@ class BuildJob(object):
             if canceled:
                 raise BuildFailed(rc=-1, job=self)
 
+        conf = copy.deepcopy(container.image.attrs.get('Config', {}))
+
         changes = [
             "LABEL {}={}".format(LABEL_BUILD_ID, self.current_task.key_id)
         ]
 
-        cmd = self.current_task.image_command
-        if cmd and self.current_task.command:
-            changes.append("CMD {}".format(json.dumps(cmd)))
+        if env or self.current_task.task.env:
+            new_env = _make_environ_dict(conf.get('Env', ()))
 
-        if env:
-            for ek, ev in env.items():
-                changes.append("ENV {} {}".format(ek, ev))
+            if self.current_task.task.env:
+                for item in self.current_task.task.env:
+                    new_env[item] = ""
+
+            if env:
+                new_env.update(env)
+
+            conf['Env'] = ["{}={}".format(k, v) for k, v in new_env.items()]
 
         # This can take a while...
         image = container.commit(
-            changes="\n".join(changes)
+            changes="\n".join(changes),
+            conf=conf
         )
 
         if self.current_task.task.capture is not None:

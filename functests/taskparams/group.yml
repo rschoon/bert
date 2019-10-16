@@ -10,10 +10,17 @@ src:
       group: daemon
       capture: out_daemon
     - run: id -G
+      capture: out_root2
+    - run: id -G
       group: 1
       capture: out_1
-
+    - run: id -G
+      capture: out_root3
 asserts: |
-  assert '0' in result.vars['out_root'].rstrip().split(" ")
-  assert '1' in result.vars['out_daemon'].rstrip().split(" ")
-  assert '1' in result.vars['out_1'].rstrip().split(" ")
+  captures = {name: result.vars[name].rstrip().split(" ") for name in result.vars}
+
+  assert '0' in captures['out_root']
+  assert '1' in captures['out_daemon']
+  assert '1' in captures['out_1']
+  assert '0' in captures['out_root2'] and '1' not in captures['out_root2']
+  assert '0' in captures['out_root3'] and '1' not in captures['out_root3']
