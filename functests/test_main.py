@@ -1,4 +1,5 @@
 
+import builtins
 import io
 import os
 import tempfile
@@ -97,10 +98,11 @@ def test_config(tconfig):
                 'result' : result
             }
             env.update(vars)
+            env.update(builtins.__dict__)
 
             code = pytest_compile(a.code, '<string>', 'exec')
             try:
-                exec(code, globals(), env)
+                exec(code, env, env)
             except Exception:
                 print("Vars: {}".format(result.vars))
                 raise
