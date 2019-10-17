@@ -315,7 +315,12 @@ class BuildJob(object):
         key_params = {}
         if env:
             key_params["env"] = env
+        if work_dir and work_dir != "/":
             key_params["work_dir"] = work_dir
+        if self.current_task.task.user:
+            key_params["user"] = self.current_task.task.user
+        if self.current_task.task.groups:
+            key_params["groups"] = self.current_task.task.groups
         key_params.update(ct.key_params)
 
         key_id = self.current_task.key_id = json_hash('sha256', [
