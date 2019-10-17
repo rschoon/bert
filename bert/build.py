@@ -414,6 +414,12 @@ class BuildJob(object):
 
             conf['Env'] = ["{}={}".format(k, v) for k, v in new_env.items()]
 
+        if self.current_task.task.user:
+            if not conf['User']:
+                changes.append("USER {}".format("root"))
+            else:
+                changes.append("USER {}".format(conf['User']))
+
         # This can take a while...
         image = container.commit(
             changes="\n".join(changes),
