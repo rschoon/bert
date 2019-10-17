@@ -44,6 +44,14 @@ py37:
     script:
         - ./ci/run-tests.sh py37
 
+py38:
+    image: python:3.8
+    services:
+        - docker:dind
+    stage: test
+    script:
+        - ./ci/run-tests.sh py38
+
 mirror-github:
     image: docker.git.cornhooves.org/build-tools/git-mirror:latest
     stage: mirror
