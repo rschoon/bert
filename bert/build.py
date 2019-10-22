@@ -225,7 +225,7 @@ class BuildJob(object):
         # XXX timeout is problematic
         self.docker_client = docker.from_env(timeout=600)
 
-        self.tpl_env = jinja2.Environment(undefined=jinja2.StrictUndefined)
+        self.tpl_env = jinja2.Environment(undefined=jinja2.StrictUndefined, keep_trailing_newline=True)
         setup_filters(self.tpl_env)
 
         self.display = display
