@@ -27,9 +27,12 @@ class TaskScript(Task, name="script"):
             raise ValueError("Either script or contents is required")
 
         script_name = "/.bert-build.script"
-        script_args = []
         if script:
             script_args = script[1:]
+            script_job_value = script[0] if len(script) == 1 else script
+        else:
+            script_args = []
+            script_job_value = None
 
         if template:
             with open(script[0], "r", encoding="utf-8") as script_fileobj:
@@ -44,7 +47,7 @@ class TaskScript(Task, name="script"):
             script_info.size = len(contents_bytes)
 
             self._run(job, self._job_key(
-                value=script[0] if len(script) == 1 else script,
+                value=script_job_value,
                 file_sha256=content_hash
             ), script_info, io.BytesIO(contents_bytes), script_name, script_args)
         else:
@@ -54,7 +57,7 @@ class TaskScript(Task, name="script"):
 
             with open(script[0], "rb") as script_fileobj:
                 self._run(job, self._job_key(
-                    value=script[0] if len(script) == 1 else script,
+                    value=script_job_value,
                     file_sha256=file_hash('sha256', script[0])
                 ), script_info, script_fileobj, script_name, script_args)
 
