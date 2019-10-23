@@ -14,12 +14,11 @@ src:
         paths:
           - value: data
             at: /tmp/hello
-        preamble: |+
+        preamble: |
           #!/bin/sh
           mkdir -p /usr/local
           sed -e '1,/^exit$/d' "$0" | tar -C /usr/local -xzvf -
           exit
-
         mode: 0755
         compress-type: gz
         dest: "{{functest_temp_dir}}/extract.run"
