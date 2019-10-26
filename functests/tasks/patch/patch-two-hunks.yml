@@ -1,0 +1,39 @@
+
+files:
+  patch.diff: |
+    --- a/example.txt
+    +++ b/example.txt
+    @@ -6,6 +6,7 @@ C0r1DaUbAOArwjj4NzNbJ0_ibITUr82w
+     GXoYiMzzuSl-papE-dy9qL05kf7nswd8
+     wfJBnlwRfpExykp_juB32WIoEfuMKDKO
+     _m5ASpXd7FUhcjms1eJJkw3Pad7IMGAc
+    +sRQ4XBiqaWh-ruFHsHusla6hbnLu5AAA
+     kS7Nm0lItBJxDbl9KHKFURqB3Z4b00Av
+     qXtDJwRbNxDxJD9Uk8xBPWi6mHVwyIjx
+     LZLXzRaf9L5PdgajUfMI8AD0gLK01i_I
+    @@ -18,6 +19,7 @@ yBQtHHAMzqdE5bPvsG4SdpWqLQ2jdJAb
+     mLV_4ZBjuKKgqPjohIZgRyeeU-5Q7gzm
+     eAS-UIB921U5vFslnH4ZP3cXFX5RTTOL
+     UWcE5RCq-_ofsZZ-D6zHdzVXRQTDV3rm
+    +mHZHUjR0n-H166N3Fl3DMRD_PLvM1AWl
+     YGm4hNZHOnWV2_LRZrcRfSovA6r4omC4
+     R4gnRns3yRxnCaxBC0wvz8mQcG-qh2EZ
+     Is3-VuOn1rjs2WWDN-MhbByjaudUXItD
+
+src:
+  from: debian:stable
+
+  tasks:
+    - add:
+        src: input
+        dest: /test
+    - patch:
+        src: "{{functest_temp_dir}}/patch.diff"
+        chdir: "/test"
+    - read-file:
+        path: /test/example.txt
+        var: data
+
+asserts: |
+  assert "_m5ASpXd7FUhcjms1eJJkw3Pad7IMGAc\nsRQ4XBiqaWh-ruFHsHusla6hbnLu5AAA\nkS7Nm0lItBJxDbl9KHKFURqB3Z4b00Av" in result.vars["data"]
+  assert "UWcE5RCq-_ofsZZ-D6zHdzVXRQTDV3rm\nmHZHUjR0n-H166N3Fl3DMRD_PLvM1AWl\nYGm4hNZHOnWV2_LRZrcRfSovA6r4omC4" in result.vars["data"]
