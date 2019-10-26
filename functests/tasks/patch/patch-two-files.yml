@@ -1,0 +1,49 @@
+
+files:
+  patch.diff: |
+    diff --git a/example.txt b/example.txt
+    index a6f8613e..ebaf103b 100644
+    --- a/example.txt
+    +++ b/example.txt
+    @@ -25,6 +25,7 @@ JG-4SNbvFBuR5pdKZ3PFAORCr5XSojow
+     22UZAsnls9IoP0OPWM2WCgEN5GQ-a13l
+     3nH_bKFt5umTb-OsMBtec8Cay-lZvDeM
+     9LcldKUQZInZcQGQhyAQkrm6JL7W3Qs-
+    +yGumBBlm371lwM6UuTRGxF3h-APZTPcH
+     Y_VovEcsOqAfr2CISLfF3eCRX9cBD9vc
+     fAAZz7FXapoQ6nn4CjPxpQu-ZVNtvr43
+     FFSkHzHJXNI9InZvlT9H98PtHscGlEEt
+    \ No newline at end of file
+    diff --git a/subdir/example2.txt b/subdir/example2.txt
+    index fa7f9b22..821cd766 100644
+    --- a/subdir/example2.txt
+    +++ b/subdir/example2.txt
+    @@ -5,6 +5,7 @@ sVAOGR8hEHuBbAxPo068wHGVeYqUf0y4
+     eheenS53rFH72kV7zuclTWmDRnHE-71-
+     qOWwgEdu5YUjGXjc_iqXHQ-lJe-Y-7Ns
+     JGQcZmr7fWwyEeh5H7BjOYMivVhSiUlv
+    +1e-kFN8AI86jTszlNpH8rqPtzLQovoVS
+     GUB-nAmgXnoqRFnUR5WVNvQk_k027UsO
+     2gbBih_Jw6D7a7m3l-Rg74m7lhT4kVCU
+     LH3o9zStnUny2qiWNOBJ5oNtQ5LcP8c1
+
+src:
+  from: debian:stable
+
+  tasks:
+    - add:
+        src: input
+        dest: /test
+    - patch:
+        src: "{{functest_temp_dir}}/patch.diff"
+        chdir: "/test"
+    - read-file:
+        path: /test/example.txt
+        var: data
+    - read-file:
+        path: /test/subdir/example2.txt
+        var: data2
+
+asserts: |
+  assert "9LcldKUQZInZcQGQhyAQkrm6JL7W3Qs-\nyGumBBlm371lwM6UuTRGxF3h-APZTPcH\nY_VovEcsOqAfr2CISLfF3eCRX9cBD9vc" in result.vars["data"]
+  assert "JGQcZmr7fWwyEeh5H7BjOYMivVhSiUlv\n1e-kFN8AI86jTszlNpH8rqPtzLQovoVS\nGUB-nAmgXnoqRFnUR5WVNvQk_k027UsO" in result.vars["data2"]

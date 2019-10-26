@@ -14,6 +14,21 @@ from ..utils import file_hash, IOFromIterable, LocalPath
 class PatchError(Exception):
     pass
 
+def _split_hunks(changes):
+    hunk = []
+    hunknum = 1
+
+    for change in changes:
+        if change.hunk != hunknum:
+            if hunk:
+                yield hunk
+            hunk = []
+            hunknum = change.hunk
+        hunk.append(change)
+
+    if hunk:
+        yield hunk
+
 class PatchedFile(object):
     def __init__(self, filename, lines=None, eol=None):
         self.filename = filename
@@ -57,26 +72,31 @@ class PatchedFile(object):
         if not changes:
             return
 
+        offset = 0
+        for hunk in _split_hunks(changes):
+            offset = self.apply_hunk(hunk, offset)
+
+    def apply_hunk(self, hunk, offset=0):
         # TODO: Handle lack of context in diff?
-        before_lines = [line[2] for line in changes if line[0] is not None]
-        before_start = changes[0][0] + self.offset_moved
+        before_lines = [line[2] for line in hunk if line[0] is not None]
+        before_start = hunk[0][0] + self.offset_moved
 
         # best case is diff is exactly where we expect it
         if self._match_at(before_start, before_lines):
-            return self._apply_at(before_start, 0, changes)
+            return self._apply_at(before_start, offset, hunk)
 
         # text likely moved, so start looking forward and backwards
-        backward_at = forward_at = 0
+        backward_at = forward_at = offset
         while before_start + forward_at < len(self.lines) or before_start + backward_at > 0:
             if before_start + forward_at < len(self.lines):
                 forward_at += 1
                 if self._match_at(before_start + forward_at, before_lines):
-                    return self._apply_at(before_start, forward_at, changes)
+                    return self._apply_at(before_start, forward_at, hunk)
 
             if before_start + backward_at > 0:
                 backward_at -= 1
                 if self._match_at(before_start + backward_at, before_lines):
-                    return self._apply_at(before_start, backward_at, changes)
+                    return self._apply_at(before_start, backward_at, hunk)
 
         raise PatchError("Patch rejected")
 
@@ -102,6 +122,7 @@ class PatchedFile(object):
             elif change.old is None and change.new is not None:
                 self.lines.insert(adj+change.new, (change.line, self.eol))
                 new_i += 1
+        return adj
 
 class Patch(object):
     def __init__(self, patch, strip_dir=0, chdir=None):
