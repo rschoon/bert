@@ -5,26 +5,51 @@ files:
     index a6f8613e..ebaf103b 100644
     --- a/example.txt
     +++ b/example.txt
-    @@ -5,6 +5,7 @@
+    @@ -2,7 +2,9 @@
+     2
+     3
+     4
+    +4.5
      5
+    +5.5
      6
      7
-    +7.5
      8
-     9
-     10
+    @@ -23,7 +25,9 @@
+     23
+     24
+     25
+    +25.5
+     26
+    +26.5
+     27
+     28
+     29
     diff --git a/subdir/example2.txt b/subdir/example2.txt
     index fa7f9b22..821cd766 100644
     --- a/subdir/example2.txt
     +++ b/subdir/example2.txt
-    @@ -5,6 +5,7 @@
+    @@ -5,7 +5,9 @@
      5
      6
      7
     +7.5
      8
+    +8.5
      9
      10
+     11
+    @@ -21,8 +23,10 @@
+     21
+     22
+     23
+    +23.5
+     24
+     25
+    +25.5
+     26
+     27
+     28
 
 src:
   from: debian:stable
@@ -43,6 +68,9 @@ src:
         path: /test/subdir/example2.txt
         var: data2
 
+
 asserts: |
-  assert "7\n7.5\n8\n9" in result.vars["data"]
-  assert "6\n7\n7.5\n8\n9\n" in result.vars["data2"]
+  assert "3\n4\n4.5\n5\n5.5\n6\n7" in result.vars["data"]
+  assert "25\n25.5\n26\n26.5\n27\n28" in result.vars["data"]
+  assert "6\n7\n7.5\n8\n8.5\n9\n10" in result.vars["data2"]
+  assert "\n23\n23.5\n24\n25\n25.5\n26" in result.vars["data2"]

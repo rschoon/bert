@@ -1,16 +1,19 @@
 
 files:
   patch.diff: |
-    --- subdir/example2.txt	2019-07-30 19:00:50.160501827 -0600
-    +++ subdir/example2.txt	2019-07-30 19:01:59.683664788 -0600
-    @@ -5,6 +5,7 @@
+    --- a/example.txt
+    +++ b/example.txt
+    @@ -4,8 +4,10 @@
+     4
      5
      6
+    +6.5
      7
-    +7.5
      8
+    +8.5
      9
      10
+     11
 
 src:
   from: debian:stable
@@ -21,11 +24,10 @@ src:
         dest: /test
     - patch:
         src: "{{functest_temp_dir}}/patch.diff"
-        strip-dir: 0
         chdir: "/test"
     - read-file:
-        path: /test/subdir/example2.txt
+        path: /test/example.txt
         var: data
 
 asserts: |
-  assert "5\n6\n7\n7.5\n8\n9" in result.vars["data"]
+  assert "5\n6\n6.5\n7\n8\n8.5\n9\n" in result.vars["data"]

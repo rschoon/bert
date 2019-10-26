@@ -47,6 +47,9 @@ class PatchedFile(object):
     def _load_lines(self, lines):
         eol_count = collections.defaultdict(int)
 
+        # line zero does not exist
+        yield None
+
         for line in lines:
             line_r = line.rstrip('\r\n')
             eol = line[len(line_r):]
@@ -65,38 +68,41 @@ class PatchedFile(object):
 
         # TODO: Recall first changed line and offset, and only update starting from there
         with open(self.filename, "w") as fileobj:
-            for line in self.lines:
+            lineiter = iter(self.lines)
+            # skip line zero
+            next(lineiter)
+
+            for line in lineiter:
                 fileobj.write("%s%s" % line)
 
     def apply_diff(self, changes):
         if not changes:
             return
 
-        offset = 0
         for hunk in _split_hunks(changes):
-            offset = self.apply_hunk(hunk, offset)
+            self.apply_hunk(hunk)
 
-    def apply_hunk(self, hunk, offset=0):
+    def apply_hunk(self, hunk):
         # TODO: Handle lack of context in diff?
-        before_lines = [line[2] for line in hunk if line[0] is not None]
-        before_start = hunk[0][0] + self.offset_moved
+        old_lines = [line.line for line in hunk if line.old is not None]
+        old_start = hunk[0].old + self.offset_moved
 
         # best case is diff is exactly where we expect it
-        if self._match_at(before_start, before_lines):
-            return self._apply_at(before_start, offset, hunk)
+        if self._match_at(old_start, old_lines):
+            return self._apply_at(old_start, hunk)
 
         # text likely moved, so start looking forward and backwards
-        backward_at = forward_at = offset
-        while before_start + forward_at < len(self.lines) or before_start + backward_at > 0:
-            if before_start + forward_at < len(self.lines):
+        backward_at = forward_at = 0
+        while old_start + forward_at < len(self.lines) or old_start + backward_at > 1:
+            if old_start + forward_at < len(self.lines):
                 forward_at += 1
-                if self._match_at(before_start + forward_at, before_lines):
-                    return self._apply_at(before_start, forward_at, hunk)
+                if self._match_at(old_start + forward_at, old_lines):
+                    return self._apply_at(old_start + forward_at, hunk)
 
-            if before_start + backward_at > 0:
+            if old_start + backward_at > 1:
                 backward_at -= 1
-                if self._match_at(before_start + backward_at, before_lines):
-                    return self._apply_at(before_start, backward_at, hunk)
+                if self._match_at(old_start + backward_at, old_lines):
+                    return self._apply_at(old_start + backward_at, hunk)
 
         raise PatchError("Patch rejected")
 
@@ -111,18 +117,17 @@ class PatchedFile(object):
                 return False
         return True
 
-    def _apply_at(self, offset, adj, changes):
-        old_i = 0
-        new_i = 0
+    def _apply_at(self, start, changes):
+        # cut out old lines
+        last = start + sum(1 for line in changes if line.old is not None)
+        self.lines[start:last] = []
 
-        for change in changes:
-            if change.old is not None and change.new is None:
-                del self.lines[adj+change.old-old_i+new_i]
-                old_i += 1
-            elif change.old is None and change.new is not None:
-                self.lines.insert(adj+change.new, (change.line, self.eol))
-                new_i += 1
-        return adj
+        # insert in new lines
+        new_lines = [change for change in changes if change.new is not None]
+        for off, change in enumerate(new_lines):
+            self.lines.insert(start+off, (change.line, self.eol))
+
+        self.offset_moved = start - changes[0].old
 
 class Patch(object):
     def __init__(self, patch, strip_dir=0, chdir=None):
