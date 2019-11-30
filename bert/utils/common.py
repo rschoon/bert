@@ -160,6 +160,22 @@ class IOHashWriter(io.IOBase):
         self._h.update(b)
         return self._inner.write(b)
 
+class TeeBytesWriter(io.RawIOBase):
+    def __init__(self, *fileobjs):
+        self.fileobjs = fileobjs
+        self.offset = 0
+
+    def readable(self):
+        return False
+
+    def tell(self):
+        return self.offset
+
+    def write(self, b):
+        self.offset += len(b)
+        for f in self.fileobjs:
+            f.write(b)
+
 class IOFromIterable(io.RawIOBase):
     def __init__(self, iterable):
         self._iter = iter(iterable)
