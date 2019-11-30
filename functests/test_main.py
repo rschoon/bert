@@ -79,8 +79,13 @@ def test_config(tconfig):
 
     try:
         if tconfig.temp_dir or tconfig.files:
-            td = tempfile.TemporaryDirectory()
-            vars['functest_temp_dir'] = td.name
+            tmpdir = os.environ.get("BERT_FUNCTEST_TEMP_DIR")
+            if tmpdir is None:
+                td = tempfile.TemporaryDirectory()
+                vars['functest_temp_dir'] = td.name
+            else:
+                vars['functest_temp_dir'] = os.path.join(tmpdir, tconfig.test_id)
+                os.makedirs(vars['functest_temp_dir'], exist_ok=True)
 
         if tconfig.files:
             for fin, fic in tconfig.files.items():
