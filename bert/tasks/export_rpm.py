@@ -211,35 +211,58 @@ def _align_padding(bs, align, padding=b'\x00'):
         return padding*add_bytes
     return b''
 
-def _rpm_header_tag_id_by_0(p):
-    return RPM_TAGS_BY_NAME[p[0]].id
 
-def make_rpm_header(header, version=1):
-    data = []
-    data_offset = 0
-    index = []
+class HeaderBuilder(object):
+    def __init__(self):
+        self.data = []
+        self.data_offset = 0
+        self.index = []
 
-    # build out chunks of index and data
-    for name, value in sorted(header.items(), key=_rpm_header_tag_id_by_0):
+    def _put_header(self, name, value, insert_at=None):
         rpm_tag = RPM_TAGS_BY_NAME[name]
         type_id, data_align, count, new_data = rpm_tag.type_func(name, value)
 
         if data_align != 0:
-            data_offset = _align_data(data, data_offset, data_align)
+            self.data_offset = _align_data(self.data, self.data_offset, data_align)
 
-        index.append(struct.pack('!iiii', rpm_tag.id, type_id, data_offset, count))
-        data.append(new_data)
-        data_offset += len(new_data)
+        index_entry = struct.pack('!iiii', rpm_tag.id, type_id, self.data_offset, count)
+        if insert_at is not None:
+            self.index.insert(insert_at, index_entry)
+        else:
+            self.index.append(index_entry)
 
-    # finish making header
-    index_bytes = b"".join(index)
-    data_bytes = b"".join(data)
+        self.data.append(new_data)
+        self.data_offset += len(new_data)
 
-    return b'%s%s%s' % (
-        struct.pack('!3sBxxxxII', b'\x8e\xad\xe8', version, len(index), data_offset),
-        index_bytes,
-        data_bytes
-    )
+    def _rpm_header_tag_id_by_0(self, p):
+        return RPM_TAGS_BY_NAME[p[0]].id
+
+    def build(self, headers, version=1, immutable_tag=None):
+        # build data
+        for name, value in sorted(headers.items(), key=self._rpm_header_tag_id_by_0):
+            self._put_header(name, value)
+
+        # Insert "immutable header" at the beginning.  In the index it's first, but in data
+        # it's at the end.  The actual data is another index entry, which points at
+        # the beginning of header
+        if immutable_tag is not None:
+            rpm_tag = RPM_TAGS_BY_NAME[immutable_tag]
+            type_id, data_align, count, _ = rpm_tag.type_func(immutable_tag, b'\0'*16)
+            immutable_data = struct.pack('!iiii', rpm_tag.id, type_id, (1+len(self.index))*-16, 16)
+            self._put_header(immutable_tag, immutable_data, insert_at=0)
+
+        # finish making header
+        index_bytes = b"".join(self.index)
+        data_bytes = b"".join(self.data)
+
+        return b'%s%s%s' % (
+            struct.pack('!3sBxxxxII', b'\x8e\xad\xe8', version, len(self.index), self.data_offset),
+            index_bytes,
+            data_bytes
+        )
+
+def make_rpm_header(*args, **kwargs):
+    return HeaderBuilder().build(*args, **kwargs)
 
 class RPMFileItem(object):
     def __init__(self, filename, size=0, mode=0o644, rdev=0, mtime=0, md5=None,
@@ -477,7 +500,7 @@ class RPMBuild(object):
             header['payloaddigestalgo'] = self.payload_digest_id
             header['payloaddigest'] = [payload_hasher.hexdigest()]
 
-            rpm_header = make_rpm_header(header)
+            rpm_header = make_rpm_header(header, immutable_tag='header_immutable')
 
             self.contents_md5.update(rpm_header)
             self.contents_sha1.update(rpm_header)
@@ -495,7 +518,7 @@ class RPMBuild(object):
                 'sig_md5': self.contents_md5.digest(),
                 'sig_sha1': self.contents_sha1.hexdigest(),
                 'sig_sha256': self.contents_sha256.hexdigest()
-            })
+            }, immutable_tag='header_signatures')
 
             with open_output(self.dest, "wb") as f:
                 f.write(lead)
