@@ -1,7 +1,8 @@
 
 from .common import (  # noqa: F401
     decode_bin, open_output, expect_file_mode, json_hash,
-    file_hash, value_hash, IOHashWriter, IOFromIterable
+    file_hash, value_hash, IOHashWriter, TeeBytesWriter,
+    IOFromIterable
 )
 from .paths import (  # noqa: F401
     LocalPath

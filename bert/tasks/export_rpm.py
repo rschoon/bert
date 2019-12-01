@@ -21,7 +21,7 @@ except ImportError:
     lzma = None
 
 from . import Task, TaskVar
-from ..utils import TarGlobList, open_output, LocalPath
+from ..utils import TarGlobList, open_output, LocalPath, IOHashWriter, TeeBytesWriter
 
 # This is derived from arch_canon entries in rpmrc
 # (We don't include the uname equiv portion)
@@ -123,9 +123,17 @@ class RPMTag(object):
 
 # This is derived from lib/rpmtag.h
 RPM_TAGS = [RPMTag(*a) for a in [
+    (61, 'header_image', rpm_tag_bin),
+    (62, 'header_signatures', rpm_tag_bin),
+    (63, 'header_immutable', rpm_tag_bin),
+    (64, 'header_regions', rpm_tag_bin),
+
     # sig
+    (269, 'sig_sha1', rpm_tag_str),
+    (273, 'sig_sha256', rpm_tag_str),
     (1000, 'sig_size', rpm_tag_int32),
-    (1001, 'sig_md5', rpm_tag_bin),
+    (1004, 'sig_md5', rpm_tag_bin),
+    (1007, 'sig_payloadsize', rpm_tag_bin),
 
     # Header
     (1000, 'name', rpm_tag_str),
@@ -180,6 +188,8 @@ RPM_TAGS = [RPMTag(*a) for a in [
     (1124, 'payloadformat', rpm_tag_str),
     (1125, 'payloadcompressor', rpm_tag_str),
     (1126, 'payloadflags', rpm_tag_str),
+    (5092, 'payloaddigest', rpm_tag_str_array),
+    (5093, 'payloaddigestalgo', rpm_tag_int32)
 ]]
 
 RPM_TAGS_BY_NAME = {tag.name: tag for tag in RPM_TAGS}
@@ -201,32 +211,58 @@ def _align_padding(bs, align, padding=b'\x00'):
         return padding*add_bytes
     return b''
 
-def make_rpm_header(header, version=1):
-    data = []
-    data_offset = 0
-    index = []
 
-    # build out chunks of index and data
-    for name, value in header.items():
+class HeaderBuilder(object):
+    def __init__(self):
+        self.data = []
+        self.data_offset = 0
+        self.index = []
+
+    def _put_header(self, name, value, insert_at=None):
         rpm_tag = RPM_TAGS_BY_NAME[name]
         type_id, data_align, count, new_data = rpm_tag.type_func(name, value)
 
         if data_align != 0:
-            data_offset = _align_data(data, data_offset, data_align)
+            self.data_offset = _align_data(self.data, self.data_offset, data_align)
 
-        index.append(struct.pack('!iiii', rpm_tag.id, type_id, data_offset, count))
-        data.append(new_data)
-        data_offset += len(new_data)
+        index_entry = struct.pack('!iiii', rpm_tag.id, type_id, self.data_offset, count)
+        if insert_at is not None:
+            self.index.insert(insert_at, index_entry)
+        else:
+            self.index.append(index_entry)
 
-    # finish making header
-    index_bytes = b"".join(index)
-    data_bytes = b"".join(data)
+        self.data.append(new_data)
+        self.data_offset += len(new_data)
 
-    return b'%s%s%s' % (
-        struct.pack('!3sBxxxxII', b'\x8e\xad\xe8', version, len(index), data_offset),
-        index_bytes,
-        data_bytes
-    )
+    def _rpm_header_tag_id_by_0(self, p):
+        return RPM_TAGS_BY_NAME[p[0]].id
+
+    def build(self, headers, version=1, immutable_tag=None):
+        # build data
+        for name, value in sorted(headers.items(), key=self._rpm_header_tag_id_by_0):
+            self._put_header(name, value)
+
+        # Insert "immutable header" at the beginning.  In the index it's first, but in data
+        # it's at the end.  The actual data is another index entry, which points at
+        # the beginning of header
+        if immutable_tag is not None:
+            rpm_tag = RPM_TAGS_BY_NAME[immutable_tag]
+            type_id, data_align, count, _ = rpm_tag.type_func(immutable_tag, b'\0'*16)
+            immutable_data = struct.pack('!iiii', rpm_tag.id, type_id, (1+len(self.index))*-16, 16)
+            self._put_header(immutable_tag, immutable_data, insert_at=0)
+
+        # finish making header
+        index_bytes = b"".join(self.index)
+        data_bytes = b"".join(self.data)
+
+        return b'%s%s%s' % (
+            struct.pack('!3sBxxxxII', b'\x8e\xad\xe8', version, len(self.index), self.data_offset),
+            index_bytes,
+            data_bytes
+        )
+
+def make_rpm_header(*args, **kwargs):
+    return HeaderBuilder().build(*args, **kwargs)
 
 class RPMFileItem(object):
     def __init__(self, filename, size=0, mode=0o644, rdev=0, mtime=0, md5=None,
@@ -289,6 +325,9 @@ class RPMBuild(object):
         ]
         self.conflicts = []
         self.obsoletes = []
+
+        self.payload_digest_id = 8
+        self.payload_digest = 'sha256'
 
         self.payload_flags = 0
         if not self.compress_type:
@@ -363,6 +402,8 @@ class RPMBuild(object):
         self.install_size = 0
         self.files = []
         self.contents_md5 = hashlib.md5()
+        self.contents_sha1 = hashlib.sha1()
+        self.contents_sha256 = hashlib.sha256()
 
     def _add_to_header(self, name, value, override=False):
         if name in self.header and not override:
@@ -420,10 +461,13 @@ class RPMBuild(object):
         self._reset()
 
         container = job.create({})
-        with tempfile.TemporaryFile() as contents_f, tempfile.TemporaryFile() as header_f:
-            for ti, tdata in self.paths.iter_container_files(container):
-                self._copy_data(container, contents_f, ti, tdata)
-            self._write_cpio_trailer(contents_f)
+        with tempfile.TemporaryFile() as contents_f, tempfile.TemporaryFile() as payload_f:
+            payload_hasher = IOHashWriter(self.payload_digest, payload_f)
+            with self.compressor(payload_hasher) as payload_comp_f:
+                writer = TeeBytesWriter(payload_comp_f, contents_f)
+                for ti, tdata in self.paths.iter_container_files(container):
+                    self._copy_data(container, writer, ti, tdata)
+                self._write_cpio_trailer(writer)
 
             files = sorted(self.files, key=lambda f: f.filename)
             all_dirnames = sorted(set(f.dirname for f in files))
@@ -453,10 +497,14 @@ class RPMBuild(object):
             header['payloadformat'] = "cpio"
             header['payloadcompressor'] = self.compress_type
             header['payloadflags'] = self.payload_flags
-            rpm_header = make_rpm_header(header)
+            header['payloaddigestalgo'] = self.payload_digest_id
+            header['payloaddigest'] = [payload_hasher.hexdigest()]
 
-            header_f.write(rpm_header)
+            rpm_header = make_rpm_header(header, immutable_tag='header_immutable')
+
             self.contents_md5.update(rpm_header)
+            self.contents_sha1.update(rpm_header)
+            self.contents_sha256.update(rpm_header)
 
             contents_f.seek(0)
             while True:
@@ -466,9 +514,11 @@ class RPMBuild(object):
                 self.contents_md5.update(chunk)
 
             sig_header = make_rpm_header({
-                'sig_size': contents_f.tell() + header_f.tell(),
-                'sig_md5': self.contents_md5.digest()
-            })
+                'sig_size': contents_f.tell() + len(rpm_header),
+                'sig_md5': self.contents_md5.digest(),
+                'sig_sha1': self.contents_sha1.hexdigest(),
+                'sig_sha256': self.contents_sha256.hexdigest()
+            }, immutable_tag='header_signatures')
 
             with open_output(self.dest, "wb") as f:
                 f.write(lead)
@@ -476,12 +526,10 @@ class RPMBuild(object):
                 f.write(sig_header)
                 f.write(_align_padding(f.tell(), 8))
 
-                header_f.seek(0)
-                shutil.copyfileobj(header_f, f)
+                f.write(rpm_header)
 
-                contents_f.seek(0)
-                with self.compressor(f) as comp_f:
-                    shutil.copyfileobj(contents_f, comp_f)
+                payload_f.seek(0)
+                shutil.copyfileobj(payload_f, f)
 
     def _copy_data(self, container, cpiof, ti, tdata):
         self.path_idx += 1
