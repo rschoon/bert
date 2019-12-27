@@ -220,6 +220,22 @@ class CurrentTask(object):
             return None
         return config.get("Cmd")
 
+class BuildImage(object):
+    def __init__(self, name=None, image=None, info=None):
+        self.name = name
+        self.image = image
+        self.info = info
+
+    def __str__(self):
+        if self.name is not None:
+            return str(self.name)
+        if self.image is not None:
+            return str(self.image.id)
+        return "unknown image"
+
+    def key_id(self):
+        return [self.name, self.info]
+
 class BuildJob(object):
     def __init__(self, stage, configs, vars=None, work_dir=None, display=None):
         # XXX timeout is problematic
@@ -234,7 +250,7 @@ class BuildJob(object):
         self.changes = []
         self.work_dir = work_dir
         self.cache_dir = "cache"
-        self.src_image = None
+        self.current_image = None
         self.current_task = None
         self._all_containers = []
         self._extra_images = []
@@ -246,12 +262,14 @@ class BuildJob(object):
         self.vars = BuildVars(self)
 
     def setup(self, image):
-        self.src_image = image
-
-        self.display.echo(">>> Pulling: {}".format(self.src_image))
-        img = self.from_image_cache.get(self.src_image)
+        self.display.echo(">>> Pulling: {}".format(image))
+        img = self.from_image_cache.get(image)
         if img is None:
-            img = self.from_image_cache[self.src_image] = self.docker_client.images.pull(self.src_image)
+            img = self.from_image_cache[image] = self.docker_client.images.pull(image)
+
+        self.current_image = BuildImage(name=image, image=img, info={
+            'src_id': img.id
+        })
 
         if self.work_dir is None:
             wd = img.attrs["Config"].get("WorkingDir")
@@ -324,7 +342,7 @@ class BuildJob(object):
         key_params.update(ct.key_params)
 
         key_id = self.current_task.key_id = json_hash('sha256', [
-            self.src_image,
+            self.current_image.key_id(),
             ct.task_name,
             key_params,
             job_key
@@ -339,16 +357,12 @@ class BuildJob(object):
             if images:
                 raise BuildImageExists(images[0])
 
-        image = self.src_image
-        if isinstance(image, str):
-            image = self.docker_client.images.get(self.src_image)
-        self.current_task.image = image
-
+        self.current_task.image = self.current_image.image
         self.current_task.command = command
         self.current_task.env = env
 
         container = self.current_task.container = self.docker_client.containers.create(
-            image=self.src_image,
+            image=self.current_task.image,
             labels={LABEL_BUILD_ID: key_id},
             command=command,
             working_dir=work_dir,
@@ -438,10 +452,10 @@ class BuildJob(object):
             )
 
         self.changes.append(image.id)
-        self.src_image = image.id
+        self.current_image = BuildImage(image=image)
         self.current_task = None
 
-        self.display.echo("--- New Image: {}".format(self.src_image))
+        self.display.echo("--- New Image: {}".format(self.current_image))
         self.cleanup()
 
     def resurrect_shell(self, container=None, env=None):
@@ -482,8 +496,8 @@ class BuildJob(object):
         self.cleanup()
 
     def _commit_from_image(self, image):
-        self.src_image = image.id
-        self.display.echo("--- Existing Image: {}".format(self.src_image))
+        self.current_image = BuildImage(image=image)
+        self.display.echo("--- Existing Image: {}".format(self.current_image))
 
     def eval_expr(self, txt):
         expr = self.tpl_env.compile_expression(txt)
@@ -708,7 +722,7 @@ class BertStage(BertChildScope):
                 job.run_task(task)
 
             if self.build_tag:
-                img = job.docker_client.images.get(job.src_image)
+                img = job.current_image.image
                 img.tag(job.template(self.build_tag))
         finally:
             job.close()
