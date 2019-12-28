@@ -221,7 +221,7 @@ class CurrentTask(object):
         return config.get("Cmd")
 
 class BuildImage(object):
-    def __init__(self, name=None, image=None, info=None):
+    def __init__(self, parent=None, name=None, image=None, info=None):
         self.name = name
         self.image = image
         self.info = info
@@ -234,7 +234,7 @@ class BuildImage(object):
         return "unknown image"
 
     def key_id(self):
-        return [self.name, self.info]
+        return self.info
 
 class BuildJob(object):
     def __init__(self, stage, configs, vars=None, work_dir=None, display=None):
@@ -252,6 +252,7 @@ class BuildJob(object):
         self.cache_dir = "cache"
         self.current_image = None
         self.current_task = None
+        self.previous_task = CurrentTask(None)
         self._all_containers = []
         self._extra_images = []
         self.from_image_cache = stage.from_image_cache
@@ -342,6 +343,7 @@ class BuildJob(object):
         key_params.update(ct.key_params)
 
         key_id = self.current_task.key_id = json_hash('sha256', [
+            self.previous_task.key_id,
             self.current_image.key_id(),
             ct.task_name,
             key_params,
@@ -452,8 +454,8 @@ class BuildJob(object):
             )
 
         self.changes.append(image.id)
-        self.current_image = BuildImage(image=image)
-        self.current_task = None
+        self.current_image = BuildImage(parent=self.current_image, image=image)
+        self._task_finish()
 
         self.display.echo("--- New Image: {}".format(self.current_image))
         self.cleanup()
@@ -496,8 +498,14 @@ class BuildJob(object):
         self.cleanup()
 
     def _commit_from_image(self, image):
-        self.current_image = BuildImage(image=image)
+        self.current_image = BuildImage(parent=self.current_image, image=image)
         self.display.echo("--- Existing Image: {}".format(self.current_image))
+        self._task_finish()
+
+    def _task_finish(self):
+        if self.current_task is not None:
+            self.previous_task = self.current_task
+        self.current_task = None
 
     def eval_expr(self, txt):
         expr = self.tpl_env.compile_expression(txt)
